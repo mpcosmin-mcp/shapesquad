@@ -170,84 +170,261 @@ export function fDate(iso: string): string {
   return dt.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
-// ── Overall Score ─────────────────────────────────────
+// ── Daily Interpolation ──────────────────────────────
+/** Densify sparse data into daily points via linear interpolation.
+ *  Input: array of { date: ISO string, val: number }.
+ *  Output: daily points between first and last date.
+ *  Real measurements are marked with `isReal: true`. */
+export interface DensePoint {
+  date: string;      // display date "15 ian."
+  isoDate: string;   // "2026-01-15"
+  val: number;
+  isReal: boolean;
+}
+
+export function densifyTimeSeries(
+  entries: { date: string; val: number }[]
+): DensePoint[] {
+  if (entries.length === 0) return [];
+  if (entries.length === 1) {
+    const dt = new Date(entries[0].date);
+    return [{
+      date: dt.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }),
+      isoDate: entries[0].date,
+      val: entries[0].val,
+      isReal: true,
+    }];
+  }
+
+  // Sort by date
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const result: DensePoint[] = [];
+  const DAY = 86400000;
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    const tA = new Date(a.date).getTime();
+    const tB = new Date(b.date).getTime();
+    const days = Math.round((tB - tA) / DAY);
+
+    for (let d = 0; d < days; d++) {
+      const t = d / days; // 0..1
+      const ts = tA + d * DAY;
+      const dt = new Date(ts);
+      const iso = dt.toISOString().slice(0, 10);
+      result.push({
+        date: dt.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }),
+        isoDate: iso,
+        val: Math.round((a.val + (b.val - a.val) * t) * 100) / 100,
+        isReal: d === 0,
+      });
+    }
+  }
+
+  // Add last point
+  const last = sorted[sorted.length - 1];
+  const lastDt = new Date(last.date);
+  result.push({
+    date: lastDt.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }),
+    isoDate: last.date,
+    val: last.val,
+    isReal: true,
+  });
+
+  return result;
+}
+
+/** Densify multi-person chart data (for SquadPage avg BF trend) */
+export function densifyAvgSeries(
+  dateValPairs: { date: string; avgBf: number }[]
+): (DensePoint & { avgBf: number })[] {
+  const dense = densifyTimeSeries(
+    dateValPairs.map(p => ({ date: p.date, val: p.avgBf }))
+  );
+  return dense.map(p => ({ ...p, avgBf: p.val }));
+}
+
+// ── Overall Score (6.0 – 10.0) ────────────────────────
+// Designed for regular people, not athletes.
+// BF 25% for men is perfectly fine. Consistency is king.
 const REF_HEIGHT = { M: 175, F: 162 }; // cm, Romania avg
 
 export interface ScoreBreakdown {
-  total: number;
-  bf: number;
+  total: number;   // 6.0 – 10.0
+  bf: number;      // 6.0 – 10.0
   progress: number;
   bmi: number;
   consistency: number;
   muscle: number;
 }
 
+/** Maps an internal 0–100 value to 6.0–10.0 with one decimal */
+function toGrade(internal: number): number {
+  return Math.round((6 + Math.max(0, Math.min(100, internal)) * 0.04) * 10) / 10;
+}
+
 export function calcOverallScore(p: Person, maxEntries: number): ScoreBreakdown {
   const g = p.gender;
   const l = p.latest;
 
-  // 1. BF Score (0-100) — how close to ideal range
-  //    M ideal: 12-20%  F ideal: 20-28%  midpoint = perfect
-  const bfIdeal = g === 'M' ? { lo: 12, hi: 20 } : { lo: 20, hi: 28 };
-  const bfMid = (bfIdeal.lo + bfIdeal.hi) / 2;
-  let bf = 0;
+  // 1. BF Score — generous ranges for normal people
+  //    M: 10-26% is great zone (25% perfectly OK), F: 18-34%
+  //    midpoint = perfect 10, outside degrades gently
+  const bfOk = g === 'M' ? { lo: 10, hi: 26 } : { lo: 18, hi: 34 };
+  const bfMid = (bfOk.lo + bfOk.hi) / 2;
+  let bf = 60; // decent default if no data
   if (l.bodyFat != null) {
-    const dist = Math.abs(l.bodyFat - bfMid);
-    const halfRange = (bfIdeal.hi - bfIdeal.lo) / 2;
-    // Inside ideal range = 80-100, outside degrades
-    bf = l.bodyFat >= bfIdeal.lo && l.bodyFat <= bfIdeal.hi
-      ? 80 + 20 * (1 - dist / halfRange)
-      : Math.max(0, 80 - (dist - halfRange) * 4);
-  }
-
-  // 2. Progress Score (0-100) — BF% improvement first → last
-  let progress = 50; // neutral if no change or single entry
-  if (p.entries.length > 1 && p.first.bodyFat != null && l.bodyFat != null) {
-    const drop = p.first.bodyFat - l.bodyFat; // positive = good
-    // +5% drop = 100, 0 = 50, -5% = 0
-    progress = Math.max(0, Math.min(100, 50 + drop * 10));
-  }
-
-  // 3. BMI Score (0-100) — how close to ideal BMI (22)
-  const h = REF_HEIGHT[g] / 100;
-  let bmi = 50;
-  if (l.kg != null) {
-    const bmiVal = l.kg / (h * h);
-    const bmiDist = Math.abs(bmiVal - 22);
-    // 0 dist = 100, 8+ dist = 0
-    bmi = Math.max(0, 100 - bmiDist * 12.5);
-  }
-
-  // 4. Consistency Score (0-100) — entries relative to max
-  const consistency = maxEntries > 0
-    ? Math.min(100, (p.entries.length / maxEntries) * 100)
-    : 50;
-
-  // 5. Muscle Score (0-100) — higher is better
-  //    M ideal: 70-80%  F ideal: 60-70%
-  const musIdeal = g === 'M' ? { lo: 70, hi: 80 } : { lo: 60, hi: 70 };
-  let muscle = 50; // neutral if no data
-  if (l.muscle != null) {
-    if (l.muscle >= musIdeal.lo) {
-      muscle = Math.min(100, 80 + ((l.muscle - musIdeal.lo) / (musIdeal.hi - musIdeal.lo)) * 20);
+    if (l.bodyFat >= bfOk.lo && l.bodyFat <= bfOk.hi) {
+      // Inside OK zone → 70–100
+      const dist = Math.abs(l.bodyFat - bfMid);
+      const halfRange = (bfOk.hi - bfOk.lo) / 2;
+      bf = 70 + 30 * (1 - dist / halfRange);
     } else {
-      muscle = Math.max(0, 80 - (musIdeal.lo - l.muscle) * 5);
+      // Outside OK zone → degrades gently (2 pts per %)
+      const overshoot = l.bodyFat < bfOk.lo
+        ? bfOk.lo - l.bodyFat
+        : l.bodyFat - bfOk.hi;
+      bf = Math.max(20, 70 - overshoot * 2);
     }
   }
 
-  // Weighted total
-  const total = Math.round(
-    bf * 0.30 + progress * 0.25 + bmi * 0.20 + consistency * 0.15 + muscle * 0.10
-  );
+  // 2. Progress — any improvement counts, stagnation is neutral not bad
+  let progress = 65; // neutral = decent
+  if (p.entries.length > 1 && p.first.bodyFat != null && l.bodyFat != null) {
+    const drop = p.first.bodyFat - l.bodyFat; // positive = good
+    // +3% drop = 100, 0 = 65, -3% = 30
+    progress = Math.max(20, Math.min(100, 65 + drop * (35 / 3)));
+  }
+
+  // 3. BMI — wider healthy range (20-28 is fine for regular people)
+  const h = REF_HEIGHT[g] / 100;
+  let bmi = 60;
+  if (l.kg != null) {
+    const bmiVal = l.kg / (h * h);
+    if (bmiVal >= 20 && bmiVal <= 28) {
+      // Inside healthy range → 75–100
+      const ideal = 24;
+      const dist = Math.abs(bmiVal - ideal);
+      bmi = 75 + 25 * (1 - dist / 4);
+    } else {
+      const overshoot = bmiVal < 20 ? 20 - bmiVal : bmiVal - 28;
+      bmi = Math.max(20, 75 - overshoot * 5);
+    }
+  }
+
+  // 4. Consistency — most important for regular people!
+  //    Even 2 entries is good. Reward showing up.
+  let consistency = 50;
+  if (maxEntries > 0) {
+    const ratio = p.entries.length / maxEntries;
+    // 1 entry = 40, 50% of max = 75, 100% = 100
+    consistency = Math.min(100, 30 + ratio * 70);
+  }
+  // Bonus: minimum 60 if they have 3+ entries (they're trying!)
+  if (p.entries.length >= 3) consistency = Math.max(consistency, 60);
+  if (p.entries.length >= 5) consistency = Math.max(consistency, 75);
+
+  // 5. Muscle — generous, no data = neutral not penalized
+  //    M: 35%+ is great (normal people!), F: 28%+ is great
+  const musGood = g === 'M' ? 35 : 28;
+  let muscle = 65; // no data = decent
+  if (l.muscle != null) {
+    if (l.muscle >= musGood) {
+      muscle = Math.min(100, 75 + (l.muscle - musGood) * 0.8);
+    } else {
+      muscle = Math.max(30, 75 - (musGood - l.muscle) * 2);
+    }
+  }
+
+  // Weighted total (internal 0-100)
+  const raw = bf * 0.25 + progress * 0.20 + bmi * 0.15 + consistency * 0.25 + muscle * 0.15;
 
   return {
-    total: Math.max(0, Math.min(100, total)),
-    bf: Math.round(bf),
-    progress: Math.round(progress),
-    bmi: Math.round(bmi),
-    consistency: Math.round(consistency),
-    muscle: Math.round(muscle),
+    total: toGrade(raw),
+    bf: toGrade(bf),
+    progress: toGrade(progress),
+    bmi: toGrade(bmi),
+    consistency: toGrade(consistency),
+    muscle: toGrade(muscle),
   };
+}
+
+// ── Pattern Recognition ──────────────────────────────
+export function getPersonInsight(p: Person): { text: string; emoji: string; tone: 'good' | 'neutral' | 'warn' } {
+  const ents = p.entries;
+  const l = p.latest;
+  const first = p.first;
+  const n = ents.length;
+
+  // Trend helpers
+  const bfDrop = (first.bodyFat != null && l.bodyFat != null) ? first.bodyFat - l.bodyFat : null;
+  const kgDelta = (first.kg != null && l.kg != null) ? l.kg - first.kg : null;
+  const musDelta = (n > 1 && first.muscle != null && l.muscle != null) ? l.muscle - first.muscle : null;
+
+  // Recent momentum: compare last 2 entries if available
+  const prev = p.previous;
+  const recentBfDelta = (prev?.bodyFat != null && l.bodyFat != null) ? l.bodyFat - prev.bodyFat : null;
+  const recentKgDelta = (prev?.kg != null && l.kg != null) ? l.kg - prev.kg : null;
+
+  // BF zones
+  const bfIdeal = p.gender === 'M' ? { lo: 12, hi: 20 } : { lo: 20, hi: 28 };
+  const bfInZone = l.bodyFat != null && l.bodyFat >= bfIdeal.lo && l.bodyFat <= bfIdeal.hi;
+
+  // Only 1 entry
+  if (n === 1) {
+    if (bfInZone) return { text: 'Punct de start solid — în zona ideală de BF%.', emoji: '🎯', tone: 'good' };
+    return { text: 'Prima măsurătoare înregistrată. Drumul abia începe!', emoji: '🚀', tone: 'neutral' };
+  }
+
+  // Strong consistent BF drop
+  if (bfDrop != null && bfDrop > 3) {
+    if (recentBfDelta != null && recentBfDelta < -0.5)
+      return { text: `BF scade constant (−${bfDrop.toFixed(1)}%). Formă excelentă, keep going!`, emoji: '🔥', tone: 'good' };
+    return { text: `−${bfDrop.toFixed(1)}% body fat de la start. Progres serios!`, emoji: '💪', tone: 'good' };
+  }
+
+  // Moderate BF drop
+  if (bfDrop != null && bfDrop > 1) {
+    if (musDelta != null && musDelta > 0.5)
+      return { text: `BF scade (−${bfDrop.toFixed(1)}%) și masă musculară crește (+${musDelta.toFixed(1)}%). Recompoziție!`, emoji: '⚡', tone: 'good' };
+    return { text: `Trend descendent pe BF (−${bfDrop.toFixed(1)}%). Pe drumul cel bun.`, emoji: '📉', tone: 'good' };
+  }
+
+  // BF plateau but muscle gain
+  if (bfDrop != null && Math.abs(bfDrop) < 1 && musDelta != null && musDelta > 0.5) {
+    return { text: `BF stabil, dar masă musculară +${musDelta.toFixed(1)}%. Recompoziție lentă.`, emoji: '🧬', tone: 'good' };
+  }
+
+  // Weight loss with BF stagnation
+  if (kgDelta != null && kgDelta < -2 && (bfDrop == null || bfDrop < 0.5)) {
+    return { text: `Pierdere în greutate (${kgDelta.toFixed(1)} kg), dar BF% stagnează. Atenție la masă musculară!`, emoji: '⚠️', tone: 'warn' };
+  }
+
+  // BF going up
+  if (bfDrop != null && bfDrop < -1) {
+    if (recentBfDelta != null && recentBfDelta < 0)
+      return { text: `BF a crescut recent (+${Math.abs(recentBfDelta).toFixed(1)}%). Moment de recalibrare.`, emoji: '🔄', tone: 'warn' };
+    return { text: `BF a crescut de la start (+${Math.abs(bfDrop).toFixed(1)}%). Focus pe alimentație.`, emoji: '📋', tone: 'warn' };
+  }
+
+  // Recent positive momentum after plateau
+  if (recentBfDelta != null && recentBfDelta < -0.5) {
+    return { text: 'Momentum recent pozitiv — BF în scădere ultimul check-in!', emoji: '📈', tone: 'good' };
+  }
+
+  // Stable in ideal zone
+  if (bfInZone) {
+    return { text: `BF în zona ideală (${l.bodyFat!.toFixed(1)}%). Menținere excelentă!`, emoji: '✅', tone: 'good' };
+  }
+
+  // Consistent tracker
+  if (n >= 4) {
+    return { text: `${n} măsurători — consistență bună. Datele arată stabilitate.`, emoji: '📊', tone: 'neutral' };
+  }
+
+  // Default
+  return { text: 'Colectează mai multe date pentru analiza trendului.', emoji: '📌', tone: 'neutral' };
 }
 
 // ── Colors ─────────────────────────────────────────────

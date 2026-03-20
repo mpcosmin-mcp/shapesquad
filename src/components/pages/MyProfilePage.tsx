@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS } from '../../lib/shape';
+import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries } from '../../lib/shape';
+import { CrosshairCursor, FloatingTooltip, TimeframeBar as TFBar, monthTicks } from '../ChartCrosshair';
 import { getAdjective } from '../../App';
 import BodySilhouette from './BodySilhouette';
 
@@ -94,6 +95,20 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
               {months > 0 && <span className="chip bg-white/5 text-slate-400 text-[10px]">{months} months</span>}
               {bfRank > 0 && <span className="chip text-[10px]" style={{ background: 'rgba(0,255,136,0.1)', color: 'var(--neon-green)' }}>#{bfRank} in Squad</span>}
             </div>
+            {/* AI Insight */}
+            {(() => {
+              const insight = getPersonInsight(p);
+              return (
+                <div className="mt-3 rounded-xl px-3 py-2" style={{
+                  background: insight.tone === 'good' ? 'rgba(0,255,136,0.06)' : insight.tone === 'warn' ? 'rgba(249,115,22,0.06)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${insight.tone === 'good' ? 'rgba(0,255,136,0.12)' : insight.tone === 'warn' ? 'rgba(249,115,22,0.12)' : 'rgba(255,255,255,0.06)'}`,
+                }}>
+                  <div className="text-[11px] font-bold" style={{ color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#94a3b8' }}>
+                    {insight.emoji} {insight.text}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -314,10 +329,12 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
 function MiniChart({ entries, metricKey, label, unit, color }: {
   entries: any[]; metricKey: MetricKey; label: string; unit: string; color: string;
 }) {
-  const data = entries.filter(e => e[metricKey] != null).map(e => ({
-    date: new Date(e.date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }),
+  const raw = entries.filter(e => e[metricKey] != null).map(e => ({
+    date: e.date as string,
     val: e[metricKey] as number,
   }));
+  const data = useMemo(() => densifyTimeSeries(raw), [JSON.stringify(raw)]);
+  const mt = useMemo(() => monthTicks(data), [data]);
   if (data.length < 2) return null;
   return (
     <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d3">
@@ -343,14 +360,27 @@ function MiniChart({ entries, metricKey, label, unit, color }: {
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
             </defs>
-            <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, fontSize: 12, fontFamily: 'JetBrains Mono' }}
-              formatter={(v: any) => [`${v.toFixed(1)} ${unit}`, label]} />
+            <Tooltip cursor={<CrosshairCursor />}
+              content={<FloatingTooltip unit={unit} color={color} />}
+              isAnimationActive={false} />
             <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2.5} fill={`url(#g-${metricKey})`}
+              dot={(props: any) => {
+                const pt = data[props.index];
+                if (!pt?.isReal) return <circle key={props.index} r={0} />;
+                return <circle key={props.index} cx={props.cx} cy={props.cy} r={4} fill={color} stroke="#0f172a" strokeWidth={2} />;
+              }}
               activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: `url(#glow-${metricKey})` }} />
-            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }} />
+            <XAxis dataKey="date" axisLine={false} tickLine={false}
+              tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
+              ticks={mt.ticks} tickFormatter={mt.fmt} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      {data.length >= 2 && <TFBar
+        firstIso={data[0].isoDate} lastIso={data[data.length - 1].isoDate}
+        days={Math.round((new Date(data[data.length-1].isoDate).getTime() - new Date(data[0].isoDate).getTime()) / 86400000)}
+        realCount={data.filter(d => d.isReal).length} color={color}
+      />}
     </div>
   );
 }
@@ -372,3 +402,4 @@ function Leg({ c, l }: { c: string; l: string }) {
     </div>
   );
 }
+

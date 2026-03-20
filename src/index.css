@@ -282,21 +282,29 @@ body::before {
 .chart-fluid {
   position: relative;
   overflow: hidden;
+  border-radius: inherit;
 }
 .chart-fluid::after {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; bottom: 0;
+  left: -50%; width: 50%;
   pointer-events: none;
+  border-radius: inherit;
   background: linear-gradient(
     105deg,
-    transparent 40%,
-    rgba(255,255,255,0.015) 45%,
-    rgba(255,255,255,0.03) 50%,
-    rgba(255,255,255,0.015) 55%,
-    transparent 60%
+    transparent 20%,
+    rgba(255,255,255,0.015) 35%,
+    rgba(255,255,255,0.035) 50%,
+    rgba(255,255,255,0.015) 65%,
+    transparent 80%
   );
-  animation: shimmerSweep 8s ease-in-out infinite;
+  animation: shimmerSlide 6s ease-in-out infinite;
+  clip-path: inset(0 2px 24px 48px);
+}
+@keyframes shimmerSlide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(400%); }
 }
 
 /* Touch-friendly tap targets */

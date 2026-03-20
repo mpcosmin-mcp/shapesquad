@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Person, METRICS, MetricKey, PERSON_COLORS } from '../../lib/shape';
+import { Person, METRICS, MetricKey, PERSON_COLORS, densifyTimeSeries } from '../../lib/shape';
+import { CrosshairCursor, FloatingTooltip, MultiTooltip, TimeframeBar, monthTicks } from '../ChartCrosshair';
 
 interface Props { people: Person[]; allPeople: Person[]; activePerson: string; }
 
@@ -11,20 +12,51 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
 
   const shown = mode === 'me' ? allPeople.filter(p => p.name === activePerson) : people;
 
-  const chartData = useMemo(() => {
-    const dateSet = new Set<string>();
-    shown.forEach(p => p.entries.forEach(e => dateSet.add(e.date)));
-    const dates = Array.from(dateSet).sort();
-    const result = dates.map(d => {
-      const row: any = { date: new Date(d).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }) };
+  const { chartData, realDates } = useMemo(() => {
+    // Densify each person's data independently
+    const personDense = new Map<string, Map<string, { val: number; isReal: boolean }>>();
+    shown.forEach(p => {
+      const raw = p.entries
+        .filter(e => e[metric] != null)
+        .map(e => ({ date: e.date, val: e[metric] as number }));
+      if (raw.length < 2) {
+        // Single point — no interpolation
+        const m = new Map<string, { val: number; isReal: boolean }>();
+        raw.forEach(r => m.set(r.date, { val: r.val, isReal: true }));
+        personDense.set(p.name, m);
+      } else {
+        const dense = densifyTimeSeries(raw);
+        const m = new Map<string, { val: number; isReal: boolean }>();
+        dense.forEach(d => m.set(d.isoDate, { val: d.val, isReal: d.isReal }));
+        personDense.set(p.name, m);
+      }
+    });
+
+    // Collect all ISO dates across all people
+    const allDates = new Set<string>();
+    personDense.forEach(m => m.forEach((_, d) => allDates.add(d)));
+    const sortedDates = Array.from(allDates).sort();
+
+    // Track real measurement dates for axis ticks
+    const reals = new Set<string>();
+    shown.forEach(p => p.entries.forEach(e => {
+      if (e[metric] != null) reals.add(e.date);
+    }));
+
+    const result = sortedDates.map(isoDate => {
+      const displayDate = new Date(isoDate).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' });
+      const row: any = { date: displayDate, isoDate, isReal: reals.has(isoDate) };
       shown.forEach(p => {
-        const e = p.entries.find(e => e.date === d);
-        row[p.name] = e ? (e[metric] as number | null) : null;
+        const pd = personDense.get(p.name);
+        row[p.name] = pd?.get(isoDate)?.val ?? null;
       });
       return row;
     });
-    return result;
+
+    return { chartData: result, realDates: reals };
   }, [shown, metric]);
+
+  const mt = useMemo(() => monthTicks(chartData), [chartData]);
 
   return (
     <div className="space-y-4">
@@ -67,10 +99,13 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
                   <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
               </defs>
-              <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 16, fontFamily: 'JetBrains Mono', fontSize: 12 }} />
+              <Tooltip cursor={<CrosshairCursor />}
+                content={mode === 'me' ? <FloatingTooltip unit={meta.unit} color={PERSON_COLORS[allPeople.findIndex(p => p.name === activePerson) % PERSON_COLORS.length]} /> : <MultiTooltip />}
+                isAnimationActive={false} />
               {mode === 'all' && <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Montserrat', fontWeight: 700 }} />}
               <XAxis dataKey="date" axisLine={false} tickLine={false}
-                tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} />
+                tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                ticks={mt.ticks} tickFormatter={mt.fmt} />
               <YAxis axisLine={false} tickLine={false}
                 tick={{ fill: '#475569', fontSize: 10, fontFamily: 'JetBrains Mono' }} />
               {shown.map((p) => {
@@ -79,7 +114,11 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
                 return (
                   <Line key={p.name} type="monotone" dataKey={p.name}
                     stroke={color} strokeWidth={mode === 'me' ? 3 : 2}
-                    dot={{ fill: color, r: mode === 'me' ? 5 : 3 }}
+                    dot={(props: any) => {
+                      const pt = chartData[props.index];
+                      if (!pt?.isReal) return <circle key={props.index} r={0} />;
+                      return <circle key={props.index} cx={props.cx} cy={props.cy} r={mode === 'me' ? 5 : 3} fill={color} stroke="#0f172a" strokeWidth={2} />;
+                    }}
                     activeDot={{ r: 7, stroke: '#fff', strokeWidth: 2, filter: 'url(#lineGlow)' }}
                     connectNulls />
                 );
@@ -87,6 +126,17 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
             </LineChart>
           </ResponsiveContainer>
         </div>
+        {chartData.length > 1 && (() => {
+          const realPts = chartData.filter((d: any) => d.isReal);
+          if (realPts.length < 2) return null;
+          const firstIso = realPts[0].isoDate;
+          const lastIso = realPts[realPts.length - 1].isoDate;
+          const days = Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 86400000);
+          const color = mode === 'me'
+            ? PERSON_COLORS[allPeople.findIndex(p => p.name === activePerson) % PERSON_COLORS.length]
+            : '#3b82f6';
+          return <TimeframeBar firstIso={firstIso} lastIso={lastIso} days={days} realCount={realPts.length} color={color} />;
+        })()}
       </div>
 
       {/* Quick stats if me mode */}

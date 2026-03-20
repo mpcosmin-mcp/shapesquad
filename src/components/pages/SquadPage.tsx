@@ -1,10 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Trophy, Target } from 'lucide-react';
-import { Person, MetricKey, delta, fmt, PERSON_COLORS, calcOverallScore, ScoreBreakdown } from '../../lib/shape';
+import { Person, MetricKey, delta, fmt, PERSON_COLORS, calcOverallScore, ScoreBreakdown, f, getPersonInsight, densifyTimeSeries } from '../../lib/shape';
+import { CrosshairCursor, SquadTooltip, TimeframeBar, monthTicks } from '../ChartCrosshair';
 import { getAdjective } from '../../App';
 
 interface Props { people: Person[]; allPeople: Person[]; gender: string; onSelectPerson: (name: string) => void; }
+
+/** Color for 6.0–10.0 grade: 9+ green, 7.5+ blue, 6.5+ orange, below red */
+function gradeColor(g: number): string {
+  if (g >= 9) return 'var(--neon-green)';
+  if (g >= 8) return '#4ecdc4';
+  if (g >= 7) return 'var(--neon-blue)';
+  if (g >= 6.5) return 'var(--neon-orange)';
+  return 'var(--neon-red)';
+}
 
 export default function SquadPage({ people, allPeople, gender, onSelectPerson }: Props) {
   const stats = useMemo(() => {
@@ -27,13 +37,16 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
         dateMap.set(e.date, arr);
       }
     }));
-    return Array.from(dateMap.entries())
+    const raw = Array.from(dateMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, vals]) => ({
-        date: new Date(date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }),
-        avgBf: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1),
+        date,
+        val: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1),
       }));
+    return densifyTimeSeries(raw).map(p => ({ ...p, avgBf: p.val }));
   }, [people]);
+
+  const mt = useMemo(() => monthTicks(trendData), [trendData]);
 
   const maxEntries = useMemo(() => Math.max(...people.map(p => p.entries.length), 1), [people]);
 
@@ -49,7 +62,7 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
     return m;
   }, [scored]);
 
-  // ── Fun Facts ──
+  // ── Fun Facts + Personality Lines ──
   const funFacts = useMemo(() => {
     const f: string[] = [];
     const totalKg = people.reduce((s, p) => s + (p.latest.kg ?? 0), 0);
@@ -58,8 +71,6 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
     if (heaviest?.latest.kg) f.push(`🏋️ ${heaviest.name} leads with ${heaviest.latest.kg.toFixed(1)} kg`);
     const most = [...people].sort((a, b) => b.entries.length - a.entries.length)[0];
     if (most) f.push(`📊 ${most.name} = data nerd (${most.entries.length} measurements)`);
-    const least = [...people].sort((a, b) => a.entries.length - b.entries.length)[0];
-    if (least?.entries.length <= 2) f.push(`🦥 ${least.name}: ${least.entries.length} weigh-in(s). Legend.`);
     if (stats.avgBf != null) f.push(`🔥 Squad avg BF: ${stats.avgBf.toFixed(1)}% — ${stats.avgBf < 25 ? 'athletic!' : 'room to grow!'}`);
     people.forEach(p => {
       if (p.entries.length > 1 && p.latest.kg != null && p.entries[0].kg != null) {
@@ -67,6 +78,67 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
         if (Math.abs(d) > 2) f.push(`${d < 0 ? '📉' : '📈'} ${p.name} ${d < 0 ? 'lost' : 'gained'} ${Math.abs(d).toFixed(1)} kg`);
       }
     });
+
+    // ── Personality roasts & vibes ──
+    const vibes: Record<string, string[]> = {
+      Gaby: [
+        '🏍️ Gaby: half gym bro, half Lego architect, 100% Raspberry Pi nerd',
+        '🧱 Gaby builds Lego sets heavier than his deadlifts',
+        '🏍️ Gaby\'s motorcycle weighs less than his Lego collection',
+      ],
+      Cata: [
+        '🎮 Cata: SELECT * FROM gains WHERE player = \'CS legend\'',
+        '💾 Cata\'s YT channel loading… buffering… still buffering…',
+        '🎯 Cata headshots in CS and in database optimization',
+      ],
+      Clara: [
+        '😴 Clara sleeps 9h and still outruns you',
+        '🏃‍♀️ Clara: runs, sleeps, repeats. Living her best life',
+        '🧘‍♀️ Clara discovered the gym and chose peace anyway',
+      ],
+      Bogdan: [
+        '🇮🇹 Bogdan: Italian soul trapped in a Romanian body with a printing empire',
+        '🖨️ Bogdan can print your excuses on a t-shirt, a mug, AND a flag',
+        '🍕 Bogdan\'s heart rate spikes near pizza AND printers',
+      ],
+      Lavinia: [
+        '🐕 Lavinia: philosopher by day, Ari\'s personal servant by night',
+        '📚 Lavinia will question the meaning of your PR while petting Ari',
+        '🤔 Lavinia\'s deep convos burn more calories than cardio',
+      ],
+      Cristi: [
+        '🚗 Cristi: team leader, perfectionist, "mizerie" enthusiast',
+        '🗣️ If Cristi says "mizerie" — just nod and walk away',
+        '👔 Cristi\'s car is cleaner than your code',
+      ],
+      Adina: [
+        '🌹 Adina: 20+ parfumes, 0 skipped gym days. Smells like victory',
+        '💐 Adina\'s perfume collection costs more than your car',
+        '👗 Adina goes to the gym dressed better than you go to weddings',
+      ],
+      Petrica: [
+        '🤖 Petrica built this app instead of doing actual reps',
+        '💻 Petrica: tracking everyone\'s gains while ignoring his own',
+        '📱 Petrica spends more time on charts than on the treadmill',
+      ],
+      Stefi: [
+        '🐍 Stefi has a snake. That\'s it. That\'s the warning.',
+        '🍔 Stefi: small, unpredictable, hungry. Approach with food.',
+        '🎲 Never bet against Stefi. She\'s chaotic neutral with a snake.',
+      ],
+      Varamea: [
+        '📺 Varamea: Survivor expert, TikTok scholar, zero stress ambassador',
+        '🏝️ Varamea watches Survivor for "strategic research"',
+        '👫 Varamea & Buicu: the couple that TikToks together stays together',
+      ],
+    };
+    // Pick one random line per person present
+    const seed = new Date().getDate(); // changes daily
+    people.forEach((p, i) => {
+      const lines = vibes[p.name];
+      if (lines) f.push(lines[(seed + i) % lines.length]);
+    });
+
     f.push(`👥 Ratio: ${people.filter(p => p.gender === 'M').length}♂ vs ${people.filter(p => p.gender === 'F').length}♀`);
     return f;
   }, [people, stats]);
@@ -206,15 +278,29 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
                     <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                   </filter>
                 </defs>
-                <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, color: '#fff', fontFamily: 'JetBrains Mono', fontSize: 11 }}
-                  formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Avg BF']} />
+                <Tooltip cursor={<CrosshairCursor />}
+                  content={<SquadTooltip color={gender === 'F' ? '#ec4899' : '#3b82f6'} />}
+                  isAnimationActive={false} />
                 <Area type="monotone" dataKey="avgBf" stroke={gender === 'F' ? '#ec4899' : '#3b82f6'} strokeWidth={2.5}
-                  fill="url(#bfGrad)" activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: 'url(#bfGlow)' }} />
+                  fill="url(#bfGrad)"
+                  dot={(props: any) => {
+                    const pt = trendData[props.index];
+                    if (!pt?.isReal) return <circle key={props.index} r={0} />;
+                    return <circle key={props.index} cx={props.cx} cy={props.cy} r={3} fill={gender === 'F' ? '#ec4899' : '#3b82f6'} stroke="#0f172a" strokeWidth={2} />;
+                  }}
+                  activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: 'url(#bfGlow)' }} />
                 <XAxis dataKey="date" axisLine={false} tickLine={false}
-                  tick={{ fill: '#475569', fontSize: 9, fontWeight: 700, fontFamily: 'Montserrat' }} />
+                  tick={{ fill: '#475569', fontSize: 9, fontWeight: 700, fontFamily: 'Montserrat' }}
+                  ticks={mt.ticks} tickFormatter={mt.fmt} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          {trendData.length >= 2 && <TimeframeBar
+            firstIso={trendData[0].isoDate} lastIso={trendData[trendData.length - 1].isoDate}
+            days={Math.round((new Date(trendData[trendData.length-1].isoDate).getTime() - new Date(trendData[0].isoDate).getTime()) / 86400000)}
+            realCount={trendData.filter(d => d.isReal).length}
+            color={gender === 'F' ? '#ec4899' : '#3b82f6'}
+          />}
         </div>
 
         <div className="lg:col-span-4 glass p-4 md:p-6 anim-fade d6">
@@ -237,13 +323,14 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
         </h2>
 
         {/* Score legend */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
+          <span className="text-[9px] text-slate-600 font-medium">Nota 6–10 pe categorie:</span>
           {[
-            { l: 'BF%', w: '30%', c: '#ff3b3b' },
-            { l: 'Progres', w: '25%', c: '#00ff88' },
-            { l: 'BMI', w: '20%', c: '#3b82f6' },
-            { l: 'Dedicare', w: '15%', c: '#a855f7' },
-            { l: 'Muscle', w: '10%', c: '#22d3ee' },
+            { l: 'Body Fat', w: '25%', c: '#ff3b3b' },
+            { l: 'Progres', w: '20%', c: '#00ff88' },
+            { l: 'BMI', w: '15%', c: '#3b82f6' },
+            { l: 'Dedicare', w: '25%', c: '#a855f7' },
+            { l: 'Masă Musculară', w: '15%', c: '#22d3ee' },
           ].map(s => (
             <span key={s.l} className="text-[9px] font-bold flex items-center gap-1">
               <span className="w-2 h-2 rounded-full inline-block" style={{ background: s.c }} />
@@ -259,6 +346,7 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
             const ci = allPeople.indexOf(p);
             const color = PERSON_COLORS[ci % PERSON_COLORS.length];
             const sc = scoreMap.get(p.name)!;
+            const insight = getPersonInsight(p);
             return (
               <button key={p.name} onClick={() => onSelectPerson(p.name)}
                 className={`w-full glass p-3 text-left active:scale-[0.98] transition-transform anim-slide d${Math.min(i+1,9)} ${i === 0 ? 'glow-blue' : ''}`}>
@@ -273,19 +361,35 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
                     <div className="text-[9px] text-slate-500">{p.gender === 'F' ? '♀' : '♂'} · {getAdjective(p.name, allPeople)}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-mono text-lg font-black" style={{ color: sc.total >= 70 ? 'var(--neon-green)' : sc.total >= 50 ? 'var(--neon-orange)' : 'var(--neon-red)' }}>
-                      {sc.total}
+                    <div className="font-mono text-xl font-black" style={{ color: gradeColor(sc.total) }}>
+                      {sc.total.toFixed(1)}
                     </div>
-                    <div className="text-[9px] text-slate-500 font-bold">pts</div>
+                    <div className="text-[9px] text-slate-500 font-bold">/ 10</div>
                   </div>
                 </div>
                 {/* Score breakdown mini-bar */}
                 <div className="flex h-1.5 rounded-full overflow-hidden mt-2 gap-px">
-                  <div style={{ width: `${sc.bf * 0.3}%`, background: '#ff3b3b' }} />
-                  <div style={{ width: `${sc.progress * 0.25}%`, background: '#00ff88' }} />
-                  <div style={{ width: `${sc.bmi * 0.2}%`, background: '#3b82f6' }} />
-                  <div style={{ width: `${sc.consistency * 0.15}%`, background: '#a855f7' }} />
-                  <div style={{ width: `${sc.muscle * 0.1}%`, background: '#22d3ee' }} />
+                  {[
+                    { val: sc.bf, w: 25, c: '#ff3b3b' },
+                    { val: sc.progress, w: 20, c: '#00ff88' },
+                    { val: sc.bmi, w: 15, c: '#3b82f6' },
+                    { val: sc.consistency, w: 25, c: '#a855f7' },
+                    { val: sc.muscle, w: 15, c: '#22d3ee' },
+                  ].map((s, j) => (
+                    <div key={j} style={{ width: `${((s.val - 6) / 4) * s.w}%`, background: s.c }} />
+                  ))}
+                </div>
+                {/* Actual values row */}
+                <div className="flex gap-2 mt-1.5 text-[8px] font-mono text-slate-600">
+                  <span>BF {p.latest.bodyFat != null ? `${p.latest.bodyFat.toFixed(1)}%` : '—'}</span>
+                  <span>·</span>
+                  <span>{p.latest.kg != null ? `${(p.latest.kg / ((p.gender === 'M' ? 1.75 : 1.62) ** 2)).toFixed(1)} BMI` : ''}</span>
+                  <span>·</span>
+                  <span>{p.entries.length} măs.</span>
+                </div>
+                {/* Insight */}
+                <div className="mt-1.5 text-[9px] font-medium" style={{ color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#64748b' }}>
+                  {insight.emoji} {insight.text}
                 </div>
               </button>
             );
@@ -298,12 +402,12 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
             <table className="lb-table">
               <thead>
                 <tr>
-                  <th>#</th><th>Legendă</th><th>Score</th>
-                  <th style={{ color: '#ff3b3b' }}>BF%</th>
+                  <th>#</th><th>Legendă</th><th>Nota</th>
+                  <th style={{ color: '#ff3b3b' }}>Body Fat</th>
                   <th style={{ color: '#00ff88' }}>Progres</th>
                   <th style={{ color: '#3b82f6' }}>BMI</th>
                   <th style={{ color: '#a855f7' }}>Dedicare</th>
-                  <th style={{ color: '#22d3ee' }}>Muscle</th>
+                  <th style={{ color: '#22d3ee' }}>Masă Musc.</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,6 +415,11 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
                   const ci = allPeople.indexOf(p);
                   const color = PERSON_COLORS[ci % PERSON_COLORS.length];
                   const sc = scoreMap.get(p.name)!;
+                  const insight = getPersonInsight(p);
+                  const refH = p.gender === 'M' ? 1.75 : 1.62;
+                  const actualBmi = p.latest.kg != null ? (p.latest.kg / (refH * refH)).toFixed(1) : '—';
+                  const bfDrop = (p.entries.length > 1 && p.first.bodyFat != null && p.latest.bodyFat != null)
+                    ? (p.first.bodyFat - p.latest.bodyFat).toFixed(1) : null;
                   return (
                     <tr key={p.name} onClick={() => onSelectPerson(p.name)} className={`cursor-pointer anim-slide d${Math.min(i+1,9)}`}>
                       <td>
@@ -325,20 +434,38 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
                           <div>
                             <div className="text-sm font-bold text-white">{p.name}</div>
                             <div className="text-[9px] text-slate-500">{p.gender==='F'?'♀':'♂'} · {getAdjective(p.name, allPeople)}</div>
+                            <div className="text-[9px] mt-0.5" style={{ color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#64748b' }}>
+                              {insight.emoji} {insight.text}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-16"><div className="progress-track"><div className="progress-fill" style={{ width:`${sc.total}%`, background: sc.total>=70?'var(--neon-green)':sc.total>=50?'var(--neon-orange)':'var(--neon-red)' }}/></div></div>
-                          <span className="font-mono text-base font-black" style={{ color: sc.total>=70?'var(--neon-green)':sc.total>=50?'var(--neon-orange)':'var(--neon-red)' }}>{sc.total}</span>
+                          <div className="w-16"><div className="progress-track"><div className="progress-fill" style={{ width:`${((sc.total - 6) / 4) * 100}%`, background: gradeColor(sc.total) }}/></div></div>
+                          <span className="font-mono text-lg font-black" style={{ color: gradeColor(sc.total) }}>{sc.total.toFixed(1)}</span>
                         </div>
                       </td>
-                      <td><span className="font-mono text-xs text-slate-300">{sc.bf}</span></td>
-                      <td><span className="font-mono text-xs text-slate-300">{sc.progress}</span></td>
-                      <td><span className="font-mono text-xs text-slate-300">{sc.bmi}</span></td>
-                      <td><span className="font-mono text-xs text-slate-300">{sc.consistency}</span></td>
-                      <td><span className="font-mono text-xs text-slate-300">{sc.muscle}</span></td>
+                      <td>
+                        <div><span className="font-mono text-xs" style={{ color: gradeColor(sc.bf) }}>{sc.bf.toFixed(1)}</span></div>
+                        <div className="text-[9px] text-slate-500 font-mono">{p.latest.bodyFat != null ? `${p.latest.bodyFat.toFixed(1)}%` : '—'}</div>
+                      </td>
+                      <td>
+                        <div><span className="font-mono text-xs" style={{ color: gradeColor(sc.progress) }}>{sc.progress.toFixed(1)}</span></div>
+                        <div className="text-[9px] text-slate-500 font-mono">{bfDrop != null ? `${Number(bfDrop) >= 0 ? '-' : '+'}${Math.abs(Number(bfDrop))}% BF` : '—'}</div>
+                      </td>
+                      <td>
+                        <div><span className="font-mono text-xs" style={{ color: gradeColor(sc.bmi) }}>{sc.bmi.toFixed(1)}</span></div>
+                        <div className="text-[9px] text-slate-500 font-mono">BMI {actualBmi}</div>
+                      </td>
+                      <td>
+                        <div><span className="font-mono text-xs" style={{ color: gradeColor(sc.consistency) }}>{sc.consistency.toFixed(1)}</span></div>
+                        <div className="text-[9px] text-slate-500 font-mono">{p.entries.length} măsurători</div>
+                      </td>
+                      <td>
+                        <div><span className="font-mono text-xs" style={{ color: gradeColor(sc.muscle) }}>{sc.muscle.toFixed(1)}</span></div>
+                        <div className="text-[9px] text-slate-500 font-mono">{p.latest.muscle != null ? `${p.latest.muscle.toFixed(1)}%` : '—'}</div>
+                      </td>
                     </tr>
                   );
                 })}

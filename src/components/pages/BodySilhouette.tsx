@@ -258,7 +258,7 @@ function fmtDate(iso: string): string {
 export default function BodySilhouette({ entries, gender }: Props) {
   const maxIdx = entries.length - 1;
   const [sliderVal, setSliderVal] = useState(maxIdx);
-  const [is3D, setIs3D] = useState(false);
+  const [is3D, setIs3D] = useState(true);
 
   const interpolated = useMemo(() => {
     if (entries.length <= 1) return entries[0];
