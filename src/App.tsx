@@ -100,29 +100,12 @@ export default function App() {
       <header className="sticky top-0 z-50" style={{ background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <button onClick={() => setView('squad')} className="flex items-center gap-2.5 shrink-0">
             <Zap className="w-7 h-7 text-yellow-400 fill-yellow-400" />
             <h1 className="font-black text-xl tracking-tight">
               SHAPE<span className="text-[var(--neon-blue)] tracking-widest">SQUAD</span>
             </h1>
-          </div>
-
-          {/* Person pills - desktop */}
-          <div className="hidden md:flex items-center gap-1.5 overflow-x-auto flex-1 mx-4" style={{ scrollbarWidth: 'none' }}>
-            {people.map((p, i) => (
-              <button key={p.name}
-                onClick={() => selectPerson(p.name)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                  activePerson === p.name
-                    ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                    : 'bg-transparent border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                }`}>
-                <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[9px] text-white font-black"
-                  style={{ background: PERSON_COLORS[i % PERSON_COLORS.length] }}>{p.name[0]}</span>
-                {p.name}
-              </button>
-            ))}
-          </div>
+          </button>
 
           {/* Gender toggle */}
           <div className="gender-toggle shrink-0">
@@ -154,22 +137,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Mobile person pills */}
-      <div className="md:hidden flex gap-1.5 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {people.map((p, i) => (
-          <button key={p.name}
-            onClick={() => selectPerson(p.name)}
-            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border ${
-              activePerson === p.name
-                ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                : 'bg-transparent border-transparent text-slate-400'
-            }`}>
-            <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[9px] text-white font-black"
-              style={{ background: PERSON_COLORS[i % PERSON_COLORS.length] }}>{p.name[0]}</span>
-            {p.name}
-          </button>
-        ))}
-      </div>
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-8 relative" style={{ zIndex: 1 }}>

@@ -140,19 +140,92 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
       </div>
 
       {/* ═══ BODY COMPOSITION ═══ */}
-      {last.bodyFat != null && last.muscle != null && (
+      {last.bodyFat != null && last.kg != null && (
         <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d4">
           <h3 className="font-black text-sm mb-4">🧬 Body Composition</h3>
-          <div className="flex h-10 rounded-2xl overflow-hidden gap-0.5 mb-3">
-            {last.bodyFat! > 0 && <Seg val={last.bodyFat!} label="Fat" bg="#ff3b3b" />}
-            {last.muscle! > 0 && <Seg val={last.muscle!} label="Muscle" bg="#00ff88" dark />}
-            {last.water != null && last.water > 0 && <Seg val={last.water} label="Water" bg="#3b82f6" />}
-          </div>
-          <div className="flex gap-5">
-            <Leg c="#ff3b3b" l={`Fat ${fmt(last.bodyFat)}%`} />
-            <Leg c="#00ff88" l={`Muscle ${fmt(last.muscle)}%`} />
-            {last.water != null && <Leg c="#3b82f6" l={`Water ${fmt(last.water)}%`} />}
-          </div>
+
+          {/* Fat Mass vs Lean Mass */}
+          {(() => {
+            const bf = last.bodyFat!;
+            const lean = 100 - bf;
+            const fatKg = (bf / 100) * last.kg!;
+            const leanKg = last.kg! - fatKg;
+            const mus = last.muscle;
+            const wat = last.water;
+
+            return (
+              <>
+                {/* Primary bar: Fat vs Lean */}
+                <div className="mb-1">
+                  <div className="flex justify-between text-[10px] font-bold mb-1.5">
+                    <span style={{ color: '#ff3b3b' }}>Fat Mass</span>
+                    <span style={{ color: '#00ff88' }}>Lean Mass</span>
+                  </div>
+                  <div className="flex h-8 rounded-xl overflow-hidden gap-0.5">
+                    <div className="flex items-center justify-center font-mono text-[10px] font-bold text-white"
+                      style={{ width: `${bf}%`, background: 'linear-gradient(135deg, #ff3b3b, #ff6b6b)' }}>
+                      {bf.toFixed(1)}%
+                    </div>
+                    <div className="flex items-center justify-center font-mono text-[10px] font-bold"
+                      style={{ width: `${lean}%`, background: 'linear-gradient(135deg, #00cc6a, #00ff88)', color: '#0f172a' }}>
+                      {lean.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Weight breakdown */}
+                <div className="flex gap-4 mt-3 mb-4">
+                  <div className="flex-1 rounded-xl p-3" style={{ background: 'rgba(255,59,59,0.08)' }}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#ff3b3b' }}>Fat Mass</div>
+                    <div className="font-mono text-lg font-black text-white">{fatKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
+                    <div className="font-mono text-[10px] text-slate-500">{bf.toFixed(1)}% of body</div>
+                  </div>
+                  <div className="flex-1 rounded-xl p-3" style={{ background: 'rgba(0,255,136,0.06)' }}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#00ff88' }}>Lean Mass</div>
+                    <div className="font-mono text-lg font-black text-white">{leanKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
+                    <div className="font-mono text-[10px] text-slate-500">{lean.toFixed(1)}% of body</div>
+                  </div>
+                </div>
+
+                {/* Lean mass breakdown (if we have muscle/water data) */}
+                {mus != null && (
+                  <>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Lean Mass Breakdown</div>
+                    <div className="flex h-5 rounded-lg overflow-hidden gap-0.5 mb-2">
+                      <div className="flex items-center justify-center font-mono text-[9px] font-bold"
+                        style={{ width: `${(mus / lean) * 100}%`, background: '#22d3ee', color: '#0f172a' }}>
+                        Muscle
+                      </div>
+                      {wat != null && (
+                        <div className="flex items-center justify-center font-mono text-[9px] font-bold text-white"
+                          style={{ width: `${(wat / lean) * 100}%`, background: '#3b82f6' }}>
+                          Water
+                        </div>
+                      )}
+                      <div className="flex items-center justify-center font-mono text-[9px] font-bold text-slate-400"
+                        style={{ flex: 1, background: 'rgba(255,255,255,0.05)' }}>
+                        Other
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      <Leg c="#22d3ee" l={`Muscle ${fmt(mus)}%`} />
+                      {wat != null && <Leg c="#3b82f6" l={`Water ${fmt(wat)}%`} />}
+                      <Leg c="rgba(255,255,255,0.15)" l={`Bone/Organs`} />
+                    </div>
+                  </>
+                )}
+
+                {/* Fat context */}
+                <div className="mt-4 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    💡 Fat cells are ~80% lipid and take up significantly more volume than muscle.
+                    1 kg of fat ≈ 1.1L volume vs 1 kg of muscle ≈ 0.9L. That's why body composition
+                    matters more than the number on the scale.
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -232,7 +305,7 @@ function MiniChart({ entries, metricKey, label, unit, color }: {
               </linearGradient>
             </defs>
             <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, fontSize: 12, fontFamily: 'JetBrains Mono' }}
-              formatter={(v: number) => [`${v.toFixed(1)} ${unit}`, label]} />
+              formatter={(v: any) => [`${v.toFixed(1)} ${unit}`, label]}/>
             <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2.5} fill={`url(#g-${metricKey})`}
               activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />
             <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }} />
