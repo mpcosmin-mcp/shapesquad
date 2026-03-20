@@ -145,83 +145,109 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
         <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d4">
           <h3 className="font-black text-sm mb-4">🧬 Body Composition</h3>
 
-          {/* Fat Mass vs Lean Mass */}
+          {/* Full body composition = 100% */}
           {(() => {
             const bf = last.bodyFat!;
-            const lean = 100 - bf;
-            const fatKg = (bf / 100) * last.kg!;
-            const leanKg = last.kg! - fatKg;
             const mus = last.muscle;
             const wat = last.water;
+            const totalKg = last.kg!;
+
+            // 100% model: Fat + Muscle + Bone/Organs = 100%
+            const musPct = mus ?? 0;
+            const bonePct = Math.max(0, 100 - bf - musPct);
+            const fatKg = (bf / 100) * totalKg;
+            const musKg = mus != null ? (musPct / 100) * totalKg : null;
+            const boneKg = mus != null ? (bonePct / 100) * totalKg : null;
 
             return (
               <>
-                {/* Primary bar: Fat vs Lean */}
+                {/* Primary bar: 100% composition */}
                 <div className="mb-1">
-                  <div className="flex justify-between text-[10px] font-bold mb-1.5">
-                    <span style={{ color: '#ff3b3b' }}>Fat Mass</span>
-                    <span style={{ color: '#00ff88' }}>Lean Mass</span>
-                  </div>
-                  <div className="flex h-8 rounded-xl overflow-hidden gap-0.5">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Full Body = 100%</div>
+                  <div className="flex h-10 rounded-xl overflow-hidden gap-0.5">
                     <div className="flex items-center justify-center font-mono text-[10px] font-bold text-white"
-                      style={{ width: `${bf}%`, background: 'linear-gradient(135deg, #ff3b3b, #ff6b6b)' }}>
-                      {bf.toFixed(1)}%
+                      style={{ width: `${bf}%`, minWidth: bf > 8 ? 'auto' : 0, background: 'linear-gradient(135deg, #ff3b3b, #ff6b6b)' }}>
+                      {bf > 8 ? `${bf.toFixed(1)}%` : ''}
                     </div>
-                    <div className="flex items-center justify-center font-mono text-[10px] font-bold"
-                      style={{ width: `${lean}%`, background: 'linear-gradient(135deg, #00cc6a, #00ff88)', color: '#0f172a' }}>
-                      {lean.toFixed(1)}%
-                    </div>
+                    {mus != null && (
+                      <div className="flex items-center justify-center font-mono text-[10px] font-bold"
+                        style={{ width: `${musPct}%`, background: 'linear-gradient(135deg, #22d3ee, #06b6d4)', color: '#0f172a' }}>
+                        {musPct > 12 ? `${musPct.toFixed(1)}%` : ''}
+                      </div>
+                    )}
+                    {mus != null && (
+                      <div className="flex items-center justify-center font-mono text-[10px] font-bold text-slate-300"
+                        style={{ width: `${bonePct}%`, background: 'rgba(255,255,255,0.08)' }}>
+                        {bonePct > 5 ? `${bonePct.toFixed(1)}%` : ''}
+                      </div>
+                    )}
+                    {mus == null && (
+                      <div className="flex items-center justify-center font-mono text-[10px] font-bold"
+                        style={{ flex: 1, background: 'linear-gradient(135deg, #00cc6a, #00ff88)', color: '#0f172a' }}>
+                        {(100 - bf).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    <Leg c="#ff3b3b" l={`Fat ${bf.toFixed(1)}%`} />
+                    {mus != null ? (
+                      <>
+                        <Leg c="#22d3ee" l={`Muscle ${musPct.toFixed(1)}%`} />
+                        <Leg c="rgba(255,255,255,0.2)" l={`Bone/Organs ${bonePct.toFixed(1)}%`} />
+                      </>
+                    ) : (
+                      <Leg c="#00ff88" l={`Lean ${(100 - bf).toFixed(1)}%`} />
+                    )}
                   </div>
                 </div>
 
-                {/* Weight breakdown */}
-                <div className="flex gap-4 mt-3 mb-4">
-                  <div className="flex-1 rounded-xl p-3" style={{ background: 'rgba(255,59,59,0.08)' }}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#ff3b3b' }}>Fat Mass</div>
+                {/* Weight cards */}
+                <div className={`grid ${mus != null ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-4 mb-4`}>
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,59,59,0.08)' }}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#ff3b3b' }}>Fat</div>
                     <div className="font-mono text-lg font-black text-white">{fatKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                    <div className="font-mono text-[10px] text-slate-500">{bf.toFixed(1)}% of body</div>
                   </div>
-                  <div className="flex-1 rounded-xl p-3" style={{ background: 'rgba(0,255,136,0.06)' }}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#00ff88' }}>Lean Mass</div>
-                    <div className="font-mono text-lg font-black text-white">{leanKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                    <div className="font-mono text-[10px] text-slate-500">{lean.toFixed(1)}% of body</div>
-                  </div>
+                  {musKg != null ? (
+                    <>
+                      <div className="rounded-xl p-3" style={{ background: 'rgba(34,211,238,0.06)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#22d3ee' }}>Muscle</div>
+                        <div className="font-mono text-lg font-black text-white">{musKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-400">Bone/Organs</div>
+                        <div className="font-mono text-lg font-black text-white">{boneKg!.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,0.06)' }}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#00ff88' }}>Lean</div>
+                      <div className="font-mono text-lg font-black text-white">{(totalKg - fatKg).toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Lean mass breakdown (if we have muscle/water data) */}
-                {mus != null && (
-                  <>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Lean Mass Breakdown</div>
-                    <div className="flex h-5 rounded-lg overflow-hidden gap-0.5 mb-2">
-                      <div className="flex items-center justify-center font-mono text-[9px] font-bold"
-                        style={{ width: `${(mus / lean) * 100}%`, background: '#22d3ee', color: '#0f172a' }}>
-                        Muscle
+                {/* Water — shown separately as it's distributed across all tissues */}
+                {wat != null && (
+                  <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: '#3b82f6' }}>Total Body Water</div>
+                        <div className="text-[9px] text-slate-500">Distributed across muscle, organs & fat</div>
                       </div>
-                      {wat != null && (
-                        <div className="flex items-center justify-center font-mono text-[9px] font-bold text-white"
-                          style={{ width: `${(wat / lean) * 100}%`, background: '#3b82f6' }}>
-                          Water
-                        </div>
-                      )}
-                      <div className="flex items-center justify-center font-mono text-[9px] font-bold text-slate-400"
-                        style={{ flex: 1, background: 'rgba(255,255,255,0.05)' }}>
-                        Other
+                      <div className="text-right">
+                        <span className="font-mono text-xl font-black text-white">{wat.toFixed(1)}<span className="text-sm text-slate-500">%</span></span>
+                        <div className="font-mono text-[10px] text-slate-400">{((wat / 100) * totalKg).toFixed(1)} kg</div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-4">
-                      <Leg c="#22d3ee" l={`Muscle ${fmt(mus)}%`} />
-                      {wat != null && <Leg c="#3b82f6" l={`Water ${fmt(wat)}%`} />}
-                      <Leg c="rgba(255,255,255,0.15)" l={`Bone/Organs`} />
-                    </div>
-                  </>
+                  </div>
                 )}
 
-                {/* Fat context */}
-                <div className="mt-4 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                {/* Info */}
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                    💡 Fat cells are ~80% lipid and take up significantly more volume than muscle.
-                    1 kg of fat ≈ 1.1L volume vs 1 kg of muscle ≈ 0.9L. That's why body composition
-                    matters more than the number on the scale.
+                    💡 1 kg of fat ≈ 1.1L volume vs 1 kg of muscle ≈ 0.9L — that's why
+                    body composition matters more than scale weight. Water is distributed
+                    across all tissues (~75% of muscle is water).
                   </div>
                 </div>
               </>
@@ -231,7 +257,7 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
       )}
 
       {/* ═══ BODY SILHOUETTE ═══ */}
-      <BodySilhouette current={last} previous={p.previous} gender={p.gender} />
+      <BodySilhouette entries={p.entries} gender={p.gender} />
 
       {/* ═══ MEASUREMENTS ═══ */}
       {measurements.some(m => last[m.key] != null) && (

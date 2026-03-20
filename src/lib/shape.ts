@@ -185,10 +185,10 @@ export const PERSON_COLORS = COLORS;
 
 // ── Demo Data ──────────────────────────────────────────
 const DEMO_DATA: Entry[] = [
-  { name: 'Adina', date: '2025-08-20', kg: 56, bodyFat: 25.1, visceralFat: 6, muscle: null, water: null, gender: 'F', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
-  { name: 'Adina', date: '2025-11-27', kg: 55.6, bodyFat: 24.5, visceralFat: 5, muscle: null, water: null, gender: 'F', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
-  { name: 'Adina', date: '2026-01-21', kg: 56.9, bodyFat: 24.5, visceralFat: 5, muscle: 71.2, water: 59.6, gender: 'F', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
-  { name: 'Cosmin', date: '2025-08-20', kg: 80, bodyFat: 20.2, visceralFat: 8, muscle: null, water: null, gender: 'M', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
-  { name: 'Cosmin', date: '2025-11-27', kg: 79, bodyFat: 19.5, visceralFat: 7, muscle: null, water: null, gender: 'M', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
-  { name: 'Cosmin', date: '2026-01-21', kg: 79.8, bodyFat: 19.8, visceralFat: 7, muscle: 74.6, water: 60.0, gender: 'M', biceps: null, spate: null, piept: null, talie: null, fesieri: null },
+  { name: 'Adina', date: '2025-08-20', kg: 56, bodyFat: 25.1, visceralFat: 6, muscle: null, water: null, gender: 'F', biceps: 26, spate: 82, piept: 88, talie: 70, fesieri: 96 },
+  { name: 'Adina', date: '2025-11-27', kg: 55.6, bodyFat: 24.5, visceralFat: 5, muscle: null, water: null, gender: 'F', biceps: 25.5, spate: 81, piept: 87, talie: 69, fesieri: 95 },
+  { name: 'Adina', date: '2026-01-21', kg: 56.9, bodyFat: 24.5, visceralFat: 5, muscle: 71.2, water: 59.6, gender: 'F', biceps: 26, spate: 82, piept: 88, talie: 69.5, fesieri: 96 },
+  { name: 'Cosmin', date: '2025-08-20', kg: 80, bodyFat: 20.2, visceralFat: 8, muscle: null, water: null, gender: 'M', biceps: 34, spate: 106, piept: 100, talie: 86, fesieri: 102 },
+  { name: 'Cosmin', date: '2025-11-27', kg: 79, bodyFat: 19.5, visceralFat: 7, muscle: null, water: null, gender: 'M', biceps: 34.5, spate: 105, piept: 99, talie: 84, fesieri: 101 },
+  { name: 'Cosmin', date: '2026-01-21', kg: 79.8, bodyFat: 19.8, visceralFat: 7, muscle: 74.6, water: 60.0, gender: 'M', biceps: 35, spate: 106, piept: 100, talie: 85, fesieri: 101 },
 ];
