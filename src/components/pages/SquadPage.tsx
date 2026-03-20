@@ -18,30 +18,6 @@ export default function SquadPage({ people, allPeople, gender }: Props) {
     };
   }, [people]);
 
-  // Awards
-  const awards = useMemo(() => {
-    const withBf = people.filter(p => p.latest.bodyFat != null);
-    const byBf = [...withBf].sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99));
-    const byCount = [...people].sort((a, b) => b.entries.length - a.entries.length);
-
-    let progressive: Person | null = null, bestDrop = 0;
-    people.filter(p => p.entries.length > 1).forEach(p => {
-      const f = p.entries[0].bodyFat, l = p.latest.bodyFat;
-      if (f != null && l != null && f - l > bestDrop) { bestDrop = f - l; progressive = p; }
-    });
-
-    return [
-      { title: 'Belly Boss', sub: 'Enjoys life to the fullest', icon: Pizza, color: 'var(--neon-orange)',
-        person: byBf.length ? byBf[byBf.length - 1] : null, stat: byBf.length ? `${byBf[byBf.length-1].latest.bodyFat?.toFixed(1)}% BF` : '' },
-      { title: 'Pure Talent', sub: 'Born fit, stays fit', icon: Star, color: 'var(--neon-yellow)',
-        person: byBf[0] || null, stat: byBf.length ? `${byBf[0].latest.bodyFat?.toFixed(1)}% BF` : '' },
-      { title: 'The Progressive', sub: 'Biggest transformation', icon: TrendingUp, color: 'var(--neon-green)',
-        person: progressive, stat: progressive ? `-${bestDrop.toFixed(1)}% BF` : '' },
-      { title: 'Streak Master', sub: 'Never misses a weigh-in', icon: Flame, color: 'var(--neon-purple)',
-        person: byCount[0] || null, stat: byCount.length ? `${byCount[0].entries.length} measurements` : '' },
-    ];
-  }, [people]);
-
   // Trend data (group entries by date)
   const trendData = useMemo(() => {
     const dateMap = new Map<string, number[]>();
@@ -67,33 +43,142 @@ export default function SquadPage({ people, allPeople, gender }: Props) {
       .sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99)),
   [people]);
 
+  // Fun facts generated from real data
+  const funFacts = useMemo(() => {
+    const facts: string[] = [];
+    const totalKg = people.reduce((s, p) => s + (p.latest.kg ?? 0), 0);
+    facts.push(`⚖️ Squad total weight: ${totalKg.toFixed(0)} kg — that's ${(totalKg / 80).toFixed(1)} average humans`);
+
+    const heaviest = [...people].sort((a, b) => (b.latest.kg ?? 0) - (a.latest.kg ?? 0))[0];
+    if (heaviest) facts.push(`🏋️ ${heaviest.name} carries the most mass at ${heaviest.latest.kg?.toFixed(1)} kg`);
+
+    const mostEntries = [...people].sort((a, b) => b.entries.length - a.entries.length)[0];
+    if (mostEntries) facts.push(`📊 ${mostEntries.name} is the data nerd with ${mostEntries.entries.length} measurements`);
+
+    const leastEntries = [...people].sort((a, b) => a.entries.length - b.entries.length)[0];
+    if (leastEntries && leastEntries.entries.length <= 2) facts.push(`🦥 ${leastEntries.name} showed up ${leastEntries.entries.length} time(s). Respect the commitment.`);
+
+    const avgBfVal = stats.avgBf;
+    if (avgBfVal != null) facts.push(`🔥 Squad average body fat: ${avgBfVal.toFixed(1)}% — ${avgBfVal < 25 ? 'looking athletic!' : 'room to grow!'}`);
+
+    people.forEach(p => {
+      if (p.entries.length > 1 && p.latest.kg != null && p.entries[0].kg != null) {
+        const diff = p.latest.kg - p.entries[0].kg;
+        if (Math.abs(diff) > 2) facts.push(`${diff < 0 ? '📉' : '📈'} ${p.name} ${diff < 0 ? 'dropped' : 'gained'} ${Math.abs(diff).toFixed(1)} kg since joining`);
+      }
+    });
+
+    const femaleCount = people.filter(p => p.gender === 'F').length;
+    const maleCount = people.filter(p => p.gender === 'M').length;
+    facts.push(`👥 Squad ratio: ${maleCount} men vs ${femaleCount} women`);
+
+    return facts;
+  }, [people, stats]);
+
+  // Per-person awards (everyone gets one)
+  const personAwards = useMemo(() => {
+    const result: { person: Person; title: string; emoji: string; color: string; stat: string }[] = [];
+    const sorted = [...people].sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99));
+    const byCount = [...people].sort((a, b) => b.entries.length - a.entries.length);
+    const byKg = [...people].sort((a, b) => (b.latest.kg ?? 0) - (a.latest.kg ?? 0));
+
+    // Track assigned
+    const assigned = new Set<string>();
+
+    // Best BF
+    if (sorted.length && sorted[0].latest.bodyFat != null) {
+      result.push({ person: sorted[0], title: 'Pure Talent', emoji: '✨', color: 'var(--neon-yellow)', stat: `${sorted[0].latest.bodyFat.toFixed(1)}% BF` });
+      assigned.add(sorted[0].name);
+    }
+
+    // Most improved
+    let bestDrop = 0, progressive: Person | null = null;
+    people.filter(p => p.entries.length > 1 && !assigned.has(p.name)).forEach(p => {
+      const f = p.entries[0].bodyFat, l = p.latest.bodyFat;
+      if (f != null && l != null && f - l > bestDrop) { bestDrop = f - l; progressive = p; }
+    });
+    if (progressive) {
+      result.push({ person: progressive, title: 'The Progressive', emoji: '⚡', color: 'var(--neon-green)', stat: `-${bestDrop.toFixed(1)}% BF` });
+      assigned.add((progressive as Person).name);
+    }
+
+    // Highest BF (Belly Boss)
+    const bellyBoss = sorted.filter(p => !assigned.has(p.name) && p.latest.bodyFat != null).pop();
+    if (bellyBoss) {
+      result.push({ person: bellyBoss, title: 'Belly Boss', emoji: '🍕', color: 'var(--neon-orange)', stat: `${bellyBoss.latest.bodyFat!.toFixed(1)}% BF` });
+      assigned.add(bellyBoss.name);
+    }
+
+    // Most consistent
+    const streaker = byCount.find(p => !assigned.has(p.name));
+    if (streaker) {
+      result.push({ person: streaker, title: 'Streak Master', emoji: '🔥', color: 'var(--neon-purple)', stat: `${streaker.entries.length} weigh-ins` });
+      assigned.add(streaker.name);
+    }
+
+    // Assign remaining
+    const extras = [
+      { title: 'Zen Master', emoji: '🧘', color: '#06b6d4' },
+      { title: 'The Sniper', emoji: '🎯', color: '#f43e5c' },
+      { title: 'Diamond Hands', emoji: '💎', color: '#818cf8' },
+      { title: 'Rocket', emoji: '🚀', color: '#fb923c' },
+      { title: 'Beast Mode', emoji: '🦁', color: '#eab308' },
+      { title: 'Night Owl', emoji: '🦉', color: '#a78bfa' },
+      { title: 'Iron Will', emoji: '⚔️', color: '#64748b' },
+      { title: 'Wildcard', emoji: '🃏', color: '#ec4899' },
+    ];
+    let ei = 0;
+    people.filter(p => !assigned.has(p.name)).forEach(p => {
+      const e = extras[ei % extras.length]; ei++;
+      const kgStr = p.latest.kg != null ? `${p.latest.kg.toFixed(1)} kg` : `${p.entries.length} entries`;
+      result.push({ person: p, title: e.title, emoji: e.emoji, color: e.color, stat: kgStr });
+    });
+
+    return result;
+  }, [people]);
+
   const genderColor = gender === 'F' ? 'var(--neon-pink)' : 'var(--neon-blue)';
 
   return (
     <div className="space-y-6">
-      {/* ═══ AWARDS ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {awards.map((a, i) => (
-          <div key={a.title} className={`glass rounded-[var(--r-lg)] p-5 relative overflow-hidden trading-card anim-fade d${i+1}`}>
-            <div className="accent-strip" style={{ background: a.color }} />
-            <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full opacity-[0.06]" style={{ background: a.color }} />
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: `${a.color}20` }}>
-                <a.icon className="w-5 h-5" style={{ color: a.color }} />
+      {/* ═══ TICKER ═══ */}
+      <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
+        <div className="flex animate-ticker whitespace-nowrap py-2.5 px-4">
+          {[...funFacts, ...funFacts].map((f, i) => (
+            <span key={i} className="inline-block mx-8 text-xs font-bold text-slate-400 shrink-0">{f}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ AWARDS CAROUSEL ═══ */}
+      <div>
+        <h3 className="font-black text-sm mb-3 flex items-center gap-2">
+          <span>🏆</span> Squad Awards
+        </h3>
+        <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollBehavior: 'smooth' }}>
+          {personAwards.map((a, i) => (
+            <div key={a.person.name} className={`glass rounded-[var(--r-lg)] p-5 relative overflow-hidden trading-card anim-fade d${Math.min(i+1, 9)} shrink-0`}
+              style={{ width: 220, minWidth: 220 }}>
+              <div className="accent-strip" style={{ background: a.color }} />
+              <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full opacity-[0.06]" style={{ background: a.color }} />
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">{a.emoji}</span>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{a.title}</span>
               </div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">🏆 {a.title}</span>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black text-white"
+                  style={{ background: PERSON_COLORS[allPeople.indexOf(a.person) % PERSON_COLORS.length] }}>
+                  {a.person.name[0]}
+                </div>
+                <div>
+                  <div className="text-base font-black text-white">{a.person.name}</div>
+                  <div className="text-[10px] text-slate-500">{a.person.gender === 'F' ? '♀' : '♂'}</div>
+                </div>
+              </div>
+              <div className="text-xs font-bold mt-1" style={{ color: a.color }}>{a.stat}</div>
             </div>
-            {a.person ? (
-              <>
-                <div className="text-xl font-black text-white mb-0.5">{a.person.name}</div>
-                <div className="text-xs font-bold" style={{ color: a.color }}>{a.stat}</div>
-                <div className="text-[10px] text-slate-500 mt-1">{a.sub}</div>
-              </>
-            ) : (
-              <div className="text-sm text-slate-500">No data yet</div>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ═══ CHART + STATS ═══ */}
@@ -120,7 +205,7 @@ export default function SquadPage({ people, allPeople, gender }: Props) {
                 </defs>
                 <Tooltip
                   contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 16, color: '#fff', fontFamily: 'JetBrains Mono', fontSize: 12 }}
-                  formatter={(v: number) => [`${v.toFixed(1)}%`, 'Avg BF']}
+                  formatter={(v: any) => [`${v.toFixed(1)}%`, 'Avg BF']}
                 />
                 <Area type="monotone" dataKey="avgBf"
                   stroke={gender === 'F' ? '#ec4899' : '#3b82f6'} strokeWidth={3}

@@ -99,8 +99,9 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50" style={{ background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <button onClick={() => setView('squad')} className="flex items-center gap-2.5 shrink-0">
+          {/* Logo - hard reset */}
+          <button onClick={() => { setView('squad'); setActivePerson(''); setGender('all'); }}
+            className="flex items-center gap-2.5 shrink-0 hover:opacity-80 transition-opacity">
             <Zap className="w-7 h-7 text-yellow-400 fill-yellow-400" />
             <h1 className="font-black text-xl tracking-tight">
               SHAPE<span className="text-[var(--neon-blue)] tracking-widest">SQUAD</span>
@@ -110,7 +111,7 @@ export default function App() {
           {/* Gender toggle */}
           <div className="gender-toggle shrink-0">
             {(['all', 'M', 'F'] as const).map(g => (
-              <button key={g} onClick={() => setGender(g)}
+              <button key={g} onClick={() => { setGender(g); if (view === 'profile') setView('squad'); }}
                 className={`gender-btn ${gender === g
                   ? g === 'F' ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/20'
                     : g === 'M' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
@@ -136,7 +137,6 @@ export default function App() {
           </nav>
         </div>
       </header>
-
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-8 relative" style={{ zIndex: 1 }}>
