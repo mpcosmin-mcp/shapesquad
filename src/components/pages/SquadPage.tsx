@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Trophy, Target } from 'lucide-react';
-import { Person, MetricKey, delta, fmt, PERSON_COLORS } from '../../lib/shape';
+import { Person, MetricKey, delta, fmt, PERSON_COLORS, calcOverallScore, ScoreBreakdown } from '../../lib/shape';
 import { getAdjective } from '../../App';
 
 interface Props { people: Person[]; allPeople: Person[]; gender: string; onSelectPerson: (name: string) => void; }
@@ -35,10 +35,19 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
       }));
   }, [people]);
 
-  const ranking = useMemo(() =>
-    [...people].filter(p => p.latest.bodyFat != null)
-      .sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99)),
-  [people]);
+  const maxEntries = useMemo(() => Math.max(...people.map(p => p.entries.length), 1), [people]);
+
+  const scored = useMemo(() =>
+    people.map(p => ({ person: p, score: calcOverallScore(p, maxEntries) }))
+      .sort((a, b) => b.score.total - a.score.total),
+  [people, maxEntries]);
+
+  const ranking = useMemo(() => scored.map(s => s.person), [scored]);
+  const scoreMap = useMemo(() => {
+    const m = new Map<string, ScoreBreakdown>();
+    scored.forEach(s => m.set(s.person.name, s.score));
+    return m;
+  }, [scored]);
 
   // ── Fun Facts ──
   const funFacts = useMemo(() => {
@@ -224,36 +233,59 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
       {/* ═══ LEADERBOARD ═══ */}
       <div className="anim-fade d7">
         <h2 className="text-base md:text-xl font-black text-white uppercase tracking-tight mb-3 flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-yellow-400" /> Clasament Body Fat
+          <Trophy className="w-5 h-5 text-yellow-400" /> Clasament Overall
         </h2>
+
+        {/* Score legend */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[
+            { l: 'BF%', w: '30%', c: '#ff3b3b' },
+            { l: 'Progres', w: '25%', c: '#00ff88' },
+            { l: 'BMI', w: '20%', c: '#3b82f6' },
+            { l: 'Dedicare', w: '15%', c: '#a855f7' },
+            { l: 'Muscle', w: '10%', c: '#22d3ee' },
+          ].map(s => (
+            <span key={s.l} className="text-[9px] font-bold flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ background: s.c }} />
+              <span className="text-slate-500">{s.l}</span>
+              <span className="text-slate-600">{s.w}</span>
+            </span>
+          ))}
+        </div>
 
         {/* Mobile: stacked cards */}
         <div className="md:hidden space-y-2">
           {ranking.map((p, i) => {
             const ci = allPeople.indexOf(p);
             const color = PERSON_COLORS[ci % PERSON_COLORS.length];
-            const bf = p.latest.bodyFat!;
-            const firstBf = p.entries[0].bodyFat;
-            const d = firstBf != null ? bf - firstBf : null;
+            const sc = scoreMap.get(p.name)!;
             return (
               <button key={p.name} onClick={() => onSelectPerson(p.name)}
-                className={`w-full glass p-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform anim-slide d${Math.min(i+1,9)} ${i === 0 ? 'glow-blue' : ''}`}>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs ${
-                  i === 0 ? 'bg-yellow-400/20 text-yellow-400' : i === 1 ? 'bg-slate-300/10 text-slate-300' : i === 2 ? 'bg-orange-400/10 text-orange-400' : 'bg-white/5 text-slate-500'
-                }`}>{i === 0 ? '👑' : i + 1}</div>
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black text-white"
-                  style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>{p.name[0]}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-white truncate">{p.name}</div>
-                  <div className="text-[9px] text-slate-500">{getAdjective(p.name, allPeople)}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-mono text-sm font-black">{bf.toFixed(1)}%</div>
-                  {d != null && d !== 0 && (
-                    <div className={`font-mono text-[10px] font-bold ${d < 0 ? 'text-[var(--neon-green)]' : 'text-[var(--neon-red)]'}`}>
-                      {d < 0 ? '↓' : '↑'}{Math.abs(d).toFixed(1)}
+                className={`w-full glass p-3 text-left active:scale-[0.98] transition-transform anim-slide d${Math.min(i+1,9)} ${i === 0 ? 'glow-blue' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs ${
+                    i === 0 ? 'bg-yellow-400/20 text-yellow-400' : i === 1 ? 'bg-slate-300/10 text-slate-300' : i === 2 ? 'bg-orange-400/10 text-orange-400' : 'bg-white/5 text-slate-500'
+                  }`}>{i === 0 ? '👑' : i + 1}</div>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black text-white"
+                    style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>{p.name[0]}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-white truncate">{p.name}</div>
+                    <div className="text-[9px] text-slate-500">{p.gender === 'F' ? '♀' : '♂'} · {getAdjective(p.name, allPeople)}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono text-lg font-black" style={{ color: sc.total >= 70 ? 'var(--neon-green)' : sc.total >= 50 ? 'var(--neon-orange)' : 'var(--neon-red)' }}>
+                      {sc.total}
                     </div>
-                  )}
+                    <div className="text-[9px] text-slate-500 font-bold">pts</div>
+                  </div>
+                </div>
+                {/* Score breakdown mini-bar */}
+                <div className="flex h-1.5 rounded-full overflow-hidden mt-2 gap-px">
+                  <div style={{ width: `${sc.bf * 0.3}%`, background: '#ff3b3b' }} />
+                  <div style={{ width: `${sc.progress * 0.25}%`, background: '#00ff88' }} />
+                  <div style={{ width: `${sc.bmi * 0.2}%`, background: '#3b82f6' }} />
+                  <div style={{ width: `${sc.consistency * 0.15}%`, background: '#a855f7' }} />
+                  <div style={{ width: `${sc.muscle * 0.1}%`, background: '#22d3ee' }} />
                 </div>
               </button>
             );
@@ -266,16 +298,19 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
             <table className="lb-table">
               <thead>
                 <tr>
-                  <th>#</th><th>Legendă</th><th>Titlu</th><th>BF%</th><th>Kg</th><th>Evoluție</th><th>Nr.</th>
+                  <th>#</th><th>Legendă</th><th>Score</th>
+                  <th style={{ color: '#ff3b3b' }}>BF%</th>
+                  <th style={{ color: '#00ff88' }}>Progres</th>
+                  <th style={{ color: '#3b82f6' }}>BMI</th>
+                  <th style={{ color: '#a855f7' }}>Dedicare</th>
+                  <th style={{ color: '#22d3ee' }}>Muscle</th>
                 </tr>
               </thead>
               <tbody>
                 {ranking.map((p, i) => {
                   const ci = allPeople.indexOf(p);
                   const color = PERSON_COLORS[ci % PERSON_COLORS.length];
-                  const bf = p.latest.bodyFat!;
-                  const firstBf = p.entries[0].bodyFat;
-                  const d = firstBf != null ? bf - firstBf : null;
+                  const sc = scoreMap.get(p.name)!;
                   return (
                     <tr key={p.name} onClick={() => onSelectPerson(p.name)} className={`cursor-pointer anim-slide d${Math.min(i+1,9)}`}>
                       <td>
@@ -289,26 +324,21 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
                             style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>{p.name[0]}</div>
                           <div>
                             <div className="text-sm font-bold text-white">{p.name}</div>
-                            <div className="text-[9px] text-slate-500">{p.gender==='F'?'♀':'♂'}</div>
+                            <div className="text-[9px] text-slate-500">{p.gender==='F'?'♀':'♂'} · {getAdjective(p.name, allPeople)}</div>
                           </div>
                         </div>
                       </td>
-                      <td><span className="chip text-[9px]" style={{ background:'rgba(255,255,255,.05)', color:'var(--text2)' }}>{getAdjective(p.name, allPeople)}</span></td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-20"><div className="progress-track"><div className="progress-fill" style={{ width:`${Math.min(100,(bf/40)*100)}%`, background: bf<22?'var(--neon-green)':bf<30?'var(--neon-orange)':'var(--neon-red)' }}/></div></div>
-                          <span className="font-mono text-sm font-black">{bf.toFixed(1)}%</span>
+                          <div className="w-16"><div className="progress-track"><div className="progress-fill" style={{ width:`${sc.total}%`, background: sc.total>=70?'var(--neon-green)':sc.total>=50?'var(--neon-orange)':'var(--neon-red)' }}/></div></div>
+                          <span className="font-mono text-base font-black" style={{ color: sc.total>=70?'var(--neon-green)':sc.total>=50?'var(--neon-orange)':'var(--neon-red)' }}>{sc.total}</span>
                         </div>
                       </td>
-                      <td><span className="font-mono text-sm">{fmt(p.latest.kg)} kg</span></td>
-                      <td>
-                        {d!=null&&d!==0?(
-                          <span className={`font-mono font-black text-sm ${d<0?'text-[var(--neon-green)]':d>0?'text-[var(--neon-red)]':'text-slate-500'}`}>
-                            {d<0?'↓':'↑'}{Math.abs(d).toFixed(1)}%
-                          </span>
-                        ):<span className="text-slate-600 text-xs">—</span>}
-                      </td>
-                      <td><span className="font-mono text-xs text-slate-400">{p.entries.length}</span></td>
+                      <td><span className="font-mono text-xs text-slate-300">{sc.bf}</span></td>
+                      <td><span className="font-mono text-xs text-slate-300">{sc.progress}</span></td>
+                      <td><span className="font-mono text-xs text-slate-300">{sc.bmi}</span></td>
+                      <td><span className="font-mono text-xs text-slate-300">{sc.consistency}</span></td>
+                      <td><span className="font-mono text-xs text-slate-300">{sc.muscle}</span></td>
                     </tr>
                   );
                 })}

@@ -170,6 +170,86 @@ export function fDate(iso: string): string {
   return dt.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
+// ── Overall Score ─────────────────────────────────────
+const REF_HEIGHT = { M: 175, F: 162 }; // cm, Romania avg
+
+export interface ScoreBreakdown {
+  total: number;
+  bf: number;
+  progress: number;
+  bmi: number;
+  consistency: number;
+  muscle: number;
+}
+
+export function calcOverallScore(p: Person, maxEntries: number): ScoreBreakdown {
+  const g = p.gender;
+  const l = p.latest;
+
+  // 1. BF Score (0-100) — how close to ideal range
+  //    M ideal: 12-20%  F ideal: 20-28%  midpoint = perfect
+  const bfIdeal = g === 'M' ? { lo: 12, hi: 20 } : { lo: 20, hi: 28 };
+  const bfMid = (bfIdeal.lo + bfIdeal.hi) / 2;
+  let bf = 0;
+  if (l.bodyFat != null) {
+    const dist = Math.abs(l.bodyFat - bfMid);
+    const halfRange = (bfIdeal.hi - bfIdeal.lo) / 2;
+    // Inside ideal range = 80-100, outside degrades
+    bf = l.bodyFat >= bfIdeal.lo && l.bodyFat <= bfIdeal.hi
+      ? 80 + 20 * (1 - dist / halfRange)
+      : Math.max(0, 80 - (dist - halfRange) * 4);
+  }
+
+  // 2. Progress Score (0-100) — BF% improvement first → last
+  let progress = 50; // neutral if no change or single entry
+  if (p.entries.length > 1 && p.first.bodyFat != null && l.bodyFat != null) {
+    const drop = p.first.bodyFat - l.bodyFat; // positive = good
+    // +5% drop = 100, 0 = 50, -5% = 0
+    progress = Math.max(0, Math.min(100, 50 + drop * 10));
+  }
+
+  // 3. BMI Score (0-100) — how close to ideal BMI (22)
+  const h = REF_HEIGHT[g] / 100;
+  let bmi = 50;
+  if (l.kg != null) {
+    const bmiVal = l.kg / (h * h);
+    const bmiDist = Math.abs(bmiVal - 22);
+    // 0 dist = 100, 8+ dist = 0
+    bmi = Math.max(0, 100 - bmiDist * 12.5);
+  }
+
+  // 4. Consistency Score (0-100) — entries relative to max
+  const consistency = maxEntries > 0
+    ? Math.min(100, (p.entries.length / maxEntries) * 100)
+    : 50;
+
+  // 5. Muscle Score (0-100) — higher is better
+  //    M ideal: 70-80%  F ideal: 60-70%
+  const musIdeal = g === 'M' ? { lo: 70, hi: 80 } : { lo: 60, hi: 70 };
+  let muscle = 50; // neutral if no data
+  if (l.muscle != null) {
+    if (l.muscle >= musIdeal.lo) {
+      muscle = Math.min(100, 80 + ((l.muscle - musIdeal.lo) / (musIdeal.hi - musIdeal.lo)) * 20);
+    } else {
+      muscle = Math.max(0, 80 - (musIdeal.lo - l.muscle) * 5);
+    }
+  }
+
+  // Weighted total
+  const total = Math.round(
+    bf * 0.30 + progress * 0.25 + bmi * 0.20 + consistency * 0.15 + muscle * 0.10
+  );
+
+  return {
+    total: Math.max(0, Math.min(100, total)),
+    bf: Math.round(bf),
+    progress: Math.round(progress),
+    bmi: Math.round(bmi),
+    consistency: Math.round(consistency),
+    muscle: Math.round(muscle),
+  };
+}
+
 // ── Colors ─────────────────────────────────────────────
 export const COLORS = [
   '#ff6b35', '#4ecdc4', '#ffe66d', '#f7fff7', '#6b5ce7',
