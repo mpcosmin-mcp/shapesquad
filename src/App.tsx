@@ -19,7 +19,6 @@ const VIEWS: { id: View; label: string; Icon: any }[] = [
   { id: 'log', label: 'Log', Icon: Plus },
 ];
 
-// Funny adjectives assigned per person (deterministic by name hash)
 const ADJECTIVES = [
   '🍕 Belly Boss', '🦥 Lazy Legend', '⚡ The Progressive', '✨ Pure Talent',
   '🔥 Streak Master', '🧘 Zen Master', '🚀 Rocket', '🎯 The Sniper',
@@ -27,16 +26,10 @@ const ADJECTIVES = [
 ];
 
 export function getAdjective(name: string, people: Person[]): string {
-  // Most improved BF = Progressive
-  // Highest BF = Belly Boss
-  // Most measurements = Streak Master
-  // Lowest measurements = Lazy Legend
-  // Best BF = Pure Talent
   const sorted = [...people].filter(p => p.latest.bodyFat != null);
   const byBf = sorted.sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99));
   const byCount = [...people].sort((a, b) => b.entries.length - a.entries.length);
 
-  // Most improved
   let bestImproved = '', bestDrop = 0;
   people.filter(p => p.entries.length > 1).forEach(p => {
     const f = p.entries[0].bodyFat, l = p.latest.bodyFat;
@@ -49,7 +42,6 @@ export function getAdjective(name: string, people: Person[]): string {
   if (byCount.length && byCount[0].name === name) return '🔥 Streak Master';
   if (byCount.length && byCount[byCount.length - 1].name === name) return '🦥 Lazy Legend';
 
-  // Hash-based fallback
   const hash = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   return ADJECTIVES[hash % ADJECTIVES.length];
 }
@@ -68,7 +60,6 @@ export default function App() {
     setEntries(data);
     const ppl = groupByPerson(data);
     setPeople(ppl);
-    if (!activePerson && ppl.length) setActivePerson(''); // leave empty for welcome picker
     setLoading(false);
   }, []);
 
@@ -77,16 +68,14 @@ export default function App() {
   const filtered = gender === 'all' ? people : people.filter(p => p.gender === gender);
   const active = activePerson ? (people.find(p => p.name === activePerson) || null) : null;
 
-  const selectPerson = (name: string) => {
-    setActivePerson(name);
-    setView('profile');
-  };
+  const selectPerson = (name: string) => { setActivePerson(name); setView('profile'); };
+  const resetHome = () => { setView('squad'); setActivePerson(''); setGender('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   const page = () => {
     if (loading) return <Loader />;
     switch (view) {
       case 'profile': return <MyProfilePage person={active} people={people} onSelect={selectPerson} />;
-      case 'squad': return <SquadPage people={filtered} allPeople={people} gender={gender} />;
+      case 'squad': return <SquadPage people={filtered} allPeople={people} gender={gender} onSelectPerson={selectPerson} />;
       case 'trends': return <TrendsPage people={filtered} allPeople={people} activePerson={activePerson || (people[0]?.name ?? '')} />;
       case 'compare': return <ComparePage people={filtered} allPeople={people} />;
       case 'history': return <HistoryPage entries={entries} people={people} />;
@@ -96,16 +85,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen relative" style={{ zIndex: 1 }}>
-      {/* Header */}
-      <header className="sticky top-0 z-50" style={{ background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Logo - hard reset */}
-          <button onClick={() => { setView('squad'); setActivePerson(''); setGender('all'); }}
-            className="flex items-center gap-2.5 shrink-0 hover:opacity-80 transition-opacity">
-            <Zap className="w-7 h-7 text-yellow-400 fill-yellow-400" />
-            <h1 className="font-black text-xl tracking-tight">
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-50" style={{ background: 'rgba(15,23,42,0.9)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-7xl mx-auto px-3 md:px-4 h-14 flex items-center justify-between gap-2">
+          {/* Logo = hard reset */}
+          <button onClick={resetHome} className="flex items-center gap-2 shrink-0 active:scale-95 transition-transform">
+            <Zap className="w-6 h-6 text-yellow-400 fill-yellow-400" />
+            <span className="font-black text-lg tracking-tight">
               SHAPE<span className="text-[var(--neon-blue)] tracking-widest">SQUAD</span>
-            </h1>
+            </span>
           </button>
 
           {/* Gender toggle */}
@@ -116,7 +104,7 @@ export default function App() {
                   ? g === 'F' ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/20'
                     : g === 'M' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                     : 'bg-white/10 text-white'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-400'
                 }`}>
                 {g === 'all' ? 'ALL' : g === 'M' ? '♂' : '♀'}
               </button>
@@ -131,33 +119,33 @@ export default function App() {
                   view === v.id ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'
                 }`}>
                 <v.Icon className="w-3.5 h-3.5" />
-                {v.label}
+                <span className="hidden lg:inline">{v.label}</span>
               </button>
             ))}
           </nav>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-8 relative" style={{ zIndex: 1 }}>
+      {/* ═══ CONTENT ═══ */}
+      <main className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6 content-safe relative" style={{ zIndex: 1 }}>
         {page()}
       </main>
 
-      {/* Mobile nav */}
+      {/* ═══ MOBILE NAV ═══ */}
       <nav className="mob-nav">
         {VIEWS.map(v => (
           <button key={v.id} onClick={() => setView(v.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl ${
+            className={`flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-xl min-w-[44px] active:scale-90 transition-transform ${
               view === v.id ? 'text-blue-400' : 'text-slate-500'
             }`}>
             <v.Icon className="w-5 h-5" />
-            <span className="text-[9px] font-bold">{v.label}</span>
+            <span className="text-[8px] font-bold leading-none">{v.label}</span>
           </button>
         ))}
       </nav>
 
-      {/* Footer */}
-      <footer className="max-w-7xl mx-auto py-8 text-center text-slate-600 text-xs font-medium">
+      {/* Footer - hidden on mobile (nav covers it) */}
+      <footer className="hidden md:block max-w-7xl mx-auto py-6 text-center text-slate-600 text-xs font-medium">
         Creat pentru cei care transpiră la sală și cei care transpiră căutând telecomanda. 🍕✨
       </footer>
     </div>
