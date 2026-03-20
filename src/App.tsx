@@ -20,28 +20,53 @@ const VIEWS: { id: View; label: string; Icon: any }[] = [
 ];
 
 const ADJECTIVES = [
-  '🍕 Belly Boss', '🦥 Lazy Legend', '⚡ The Progressive', '✨ Pure Talent',
-  '🔥 Streak Master', '🧘 Zen Master', '🚀 Rocket', '🎯 The Sniper',
+  '🧘 Zen Master', '🚀 Rocket', '🎯 The Sniper',
   '💎 Diamond Hands', '🌊 Surfer', '🦁 Beast Mode', '🎪 Showoff',
+  '⭐ Squad Member', '🌟 Rising Star', '🎖️ Dedicated',
 ];
 
 export function getAdjective(name: string, people: Person[]): string {
-  const sorted = [...people].filter(p => p.latest.bodyFat != null);
-  const byBf = sorted.sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99));
   const byCount = [...people].sort((a, b) => b.entries.length - a.entries.length);
+  const assigned = new Set<string>();
 
-  let bestImproved = '', bestDrop = 0;
-  people.filter(p => p.entries.length > 1).forEach(p => {
-    const f = p.entries[0].bodyFat, l = p.latest.bodyFat;
-    if (f != null && l != null && f - l > bestDrop) { bestDrop = f - l; bestImproved = p.name; }
+  // Most check-ins
+  if (byCount.length && byCount[0].name === name) return '🔥 Streak Machine';
+  assigned.add(byCount[0]?.name);
+
+  // Longest journey (first entry → latest)
+  const bySpan = [...people].filter(p => p.entries.length >= 2).sort((a, b) => {
+    const spanA = new Date(a.latest.date).getTime() - new Date(a.first.date).getTime();
+    const spanB = new Date(b.latest.date).getTime() - new Date(b.first.date).getTime();
+    return spanB - spanA;
   });
+  const vet = bySpan.find(p => !assigned.has(p.name));
+  if (vet && vet.name === name) return '🛡️ The Veteran';
+  if (vet) assigned.add(vet.name);
 
-  if (name === bestImproved) return '⚡ The Progressive';
-  if (byBf.length && byBf[0].name === name) return '✨ Pure Talent';
-  if (byBf.length && byBf[byBf.length - 1].name === name) return '🍕 Belly Boss';
-  if (byCount.length && byCount[0].name === name) return '🔥 Streak Master';
-  if (byCount.length && byCount[byCount.length - 1].name === name) return '🦥 Lazy Legend';
+  // Most recent newcomer
+  const byNewest = [...people].sort((a, b) => b.first.date.localeCompare(a.first.date));
+  const fresh = byNewest.find(p => !assigned.has(p.name));
+  if (fresh && fresh.name === name) return '🌱 Fresh Start';
+  if (fresh) assigned.add(fresh.name);
 
+  // Most complete data (avg non-null fields per entry)
+  const completeness = people.filter(p => !assigned.has(p.name)).map(p => {
+    const avg = p.entries.reduce((s, e) => {
+      let c = 0;
+      if (e.kg != null) c++; if (e.bodyFat != null) c++; if (e.muscle != null) c++;
+      if (e.water != null) c++; if (e.visceralFat != null) c++;
+      if (e.biceps != null) c++; if (e.spate != null) c++;
+      if (e.piept != null) c++; if (e.talie != null) c++;
+      if (e.fesieri != null) c++;
+      return s + c;
+    }, 0) / p.entries.length;
+    return { p, avg };
+  }).sort((a, b) => b.avg - a.avg);
+  const allIn = completeness[0];
+  if (allIn && allIn.p.name === name) return '📊 All-In';
+  if (allIn) assigned.add(allIn.p.name);
+
+  // Fallback: hash-based fun title
   const hash = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   return ADJECTIVES[hash % ADJECTIVES.length];
 }
