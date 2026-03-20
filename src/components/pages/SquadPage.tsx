@@ -179,19 +179,28 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
               {gender === 'all' ? 'Everyone' : gender === 'M' ? 'Bărbați' : 'Femei'}
             </span>
           </div>
-          <div style={{ height: 220 }}>
+          <div className="chart-fluid" style={{ height: 220, ['--chart-accent' as any]: gender === 'F' ? '#ec489966' : '#3b82f666' }}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={trendData}>
                 <defs>
                   <linearGradient id="bfGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={gender === 'F' ? '#ec4899' : '#3b82f6'} stopOpacity={0.25} />
+                    <stop offset="5%" stopColor={gender === 'F' ? '#ec4899' : '#3b82f6'} stopOpacity={0.3}>
+                      <animate attributeName="stop-opacity" values="0.3;0.12;0.3" dur="4s" repeatCount="indefinite" />
+                    </stop>
+                    <stop offset="50%" stopColor={gender === 'F' ? '#ec4899' : '#3b82f6'} stopOpacity={0.08}>
+                      <animate attributeName="stop-opacity" values="0.08;0.22;0.08" dur="4s" begin="1s" repeatCount="indefinite" />
+                    </stop>
                     <stop offset="95%" stopColor={gender === 'F' ? '#ec4899' : '#3b82f6'} stopOpacity={0} />
                   </linearGradient>
+                  <filter id="bfGlow">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
                 </defs>
                 <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, color: '#fff', fontFamily: 'JetBrains Mono', fontSize: 11 }}
                   formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Avg BF']} />
                 <Area type="monotone" dataKey="avgBf" stroke={gender === 'F' ? '#ec4899' : '#3b82f6'} strokeWidth={2.5}
-                  fill="url(#bfGrad)" activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />
+                  fill="url(#bfGrad)" activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: 'url(#bfGlow)' }} />
                 <XAxis dataKey="date" axisLine={false} tickLine={false}
                   tick={{ fill: '#475569', fontSize: 9, fontWeight: 700, fontFamily: 'Montserrat' }} />
               </AreaChart>

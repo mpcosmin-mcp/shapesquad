@@ -58,9 +58,15 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
           <h2 className="font-black text-lg">{meta.label}</h2>
           {meta.unit && <span className="chip bg-white/5 text-slate-400 font-mono text-[10px]">{meta.unit}</span>}
         </div>
-        <div style={{ height: 360 }}>
+        <div className="chart-fluid" style={{ height: 360 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={chartData}>
+              <defs>
+                <filter id="lineGlow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
               <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 16, fontFamily: 'JetBrains Mono', fontSize: 12 }} />
               {mode === 'all' && <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Montserrat', fontWeight: 700 }} />}
               <XAxis dataKey="date" axisLine={false} tickLine={false}
@@ -74,7 +80,7 @@ export default function TrendsPage({ people, allPeople, activePerson }: Props) {
                   <Line key={p.name} type="monotone" dataKey={p.name}
                     stroke={color} strokeWidth={mode === 'me' ? 3 : 2}
                     dot={{ fill: color, r: mode === 'me' ? 5 : 3 }}
-                    activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 7, stroke: '#fff', strokeWidth: 2, filter: 'url(#lineGlow)' }}
                     connectNulls />
                 );
               })}

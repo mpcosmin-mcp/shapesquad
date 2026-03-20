@@ -123,7 +123,12 @@ body::before {
 
 /* Progress bar */
 .progress-track { height:5px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
-.progress-fill { height:100%; border-radius:3px; transition:width .8s cubic-bezier(.16,1,.3,1); }
+.progress-fill { height:100%; border-radius:3px; transition:width .8s cubic-bezier(.16,1,.3,1); position:relative; overflow:hidden; }
+.progress-fill::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: shimmerSweep 3s ease-in-out infinite;
+}
 
 /* ── Timeline Slider ── */
 .timeline-slider {
@@ -223,6 +228,76 @@ body::before {
 
 /* Recharts fix */
 .recharts-tooltip-wrapper { pointer-events:none!important; }
+
+/* ═══ FLUID CHART ANIMATIONS ═══ */
+
+/* Glow filter for chart strokes */
+@keyframes chartGlow {
+  0%, 100% { filter: drop-shadow(0 0 3px var(--glow-color, rgba(59,130,246,0.3))); }
+  50% { filter: drop-shadow(0 0 8px var(--glow-color, rgba(59,130,246,0.5))); }
+}
+
+/* Wave shimmer that sweeps across the chart area */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Breathing fill opacity */
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Radar pulse */
+@keyframes radarPulse {
+  0%, 100% { fill-opacity: 0.12; stroke-width: 2; }
+  50% { fill-opacity: 0.2; stroke-width: 2.5; }
+}
+
+/* Chart line draw-in animation */
+@keyframes lineDrawIn {
+  from { stroke-dashoffset: 2000; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Apply to chart containers */
+.chart-fluid .recharts-area-area {
+  animation: breathe 4s ease-in-out infinite;
+}
+.chart-fluid .recharts-area-curve {
+  --glow-color: var(--chart-accent, rgba(59,130,246,0.4));
+  animation: chartGlow 3s ease-in-out infinite;
+}
+.chart-fluid .recharts-line .recharts-line-curve {
+  --glow-color: var(--chart-accent, rgba(59,130,246,0.4));
+  stroke-dasharray: 2000;
+  animation: lineDrawIn 2s ease-out forwards, chartGlow 3s ease-in-out 2s infinite;
+}
+.chart-fluid .recharts-radar .recharts-radar-polygon {
+  animation: radarPulse 3s ease-in-out infinite;
+}
+
+/* Shimmer overlay for chart containers */
+.chart-fluid {
+  position: relative;
+  overflow: hidden;
+}
+.chart-fluid::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255,255,255,0.015) 45%,
+    rgba(255,255,255,0.03) 50%,
+    rgba(255,255,255,0.015) 55%,
+    transparent 60%
+  );
+  animation: shimmerSweep 8s ease-in-out infinite;
+}
 
 /* Touch-friendly tap targets */
 @media(max-width:768px){

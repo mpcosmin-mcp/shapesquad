@@ -55,9 +55,15 @@ export default function ComparePage({ people, allPeople }: Props) {
       {/* Radar */}
       <div className="glass rounded-[var(--r-lg)] p-6 anim-fade">
         <h3 className="font-black text-sm mb-4">⚔️ Body Profile Radar</h3>
-        <div style={{ height: 350 }}>
+        <div className="chart-fluid" style={{ height: 350 }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <RadarChart data={radarData}>
+              <defs>
+                <filter id="radarGlow">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
               <PolarGrid stroke="rgba(255,255,255,0.06)" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} />
               <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, fontFamily: 'JetBrains Mono', fontSize: 11 }} />
@@ -65,7 +71,8 @@ export default function ComparePage({ people, allPeople }: Props) {
                 const ci = allPeople.indexOf(p);
                 const color = PERSON_COLORS[ci % PERSON_COLORS.length];
                 return <Radar key={p.name} name={p.name} dataKey={p.name}
-                  stroke={color} fill={color} fillOpacity={0.12} strokeWidth={2} />;
+                  stroke={color} fill={color} fillOpacity={0.12} strokeWidth={2}
+                  style={{ filter: 'url(#radarGlow)' }} />;
               })}
             </RadarChart>
           </ResponsiveContainer>

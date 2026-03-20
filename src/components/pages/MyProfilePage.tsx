@@ -325,19 +325,28 @@ function MiniChart({ entries, metricKey, label, unit, color }: {
         <h3 className="font-black text-sm">{label}</h3>
         <span className="chip bg-white/5 text-slate-400 font-mono text-[10px]">{unit}</span>
       </div>
-      <div style={{ height: 180 }}>
+      <div className="chart-fluid" style={{ height: 180, ['--chart-accent' as any]: `${color}66` }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={data}>
             <defs>
               <linearGradient id={`g-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="5%" stopColor={color} stopOpacity={0.3}>
+                  <animate attributeName="stop-opacity" values="0.3;0.12;0.3" dur="4s" repeatCount="indefinite" />
+                </stop>
+                <stop offset="50%" stopColor={color} stopOpacity={0.08}>
+                  <animate attributeName="stop-opacity" values="0.08;0.2;0.08" dur="4s" begin="1s" repeatCount="indefinite" />
+                </stop>
                 <stop offset="95%" stopColor={color} stopOpacity={0} />
               </linearGradient>
+              <filter id={`glow-${metricKey}`}>
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
             </defs>
             <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, fontSize: 12, fontFamily: 'JetBrains Mono' }}
               formatter={(v: any) => [`${v.toFixed(1)} ${unit}`, label]} />
             <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2.5} fill={`url(#g-${metricKey})`}
-              activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />
+              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: `url(#glow-${metricKey})` }} />
             <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }} />
           </AreaChart>
         </ResponsiveContainer>
