@@ -1,6 +1,7 @@
 {
   "name": "shapesquad",
   "version": "1.0.0",
+  "homepage": "https://mpcosmin-mcp.github.io/shapesquad",
   "private": true,
   "scripts": {
     "dev": "vite",
