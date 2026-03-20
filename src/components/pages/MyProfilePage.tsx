@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS } from '../../lib/shape';
 import { getAdjective } from '../../App';
+import BodySilhouette from './BodySilhouette';
 
 interface Props { person: Person | null; people: Person[]; onSelect?: (name: string) => void; }
 
@@ -229,6 +230,9 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
         </div>
       )}
 
+      {/* ═══ BODY SILHOUETTE ═══ */}
+      <BodySilhouette current={last} previous={p.previous} gender={p.gender} />
+
       {/* ═══ MEASUREMENTS ═══ */}
       {measurements.some(m => last[m.key] != null) && (
         <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d5">
@@ -305,7 +309,7 @@ function MiniChart({ entries, metricKey, label, unit, color }: {
               </linearGradient>
             </defs>
             <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12, fontSize: 12, fontFamily: 'JetBrains Mono' }}
-              formatter={(v: any) => [`${v.toFixed(1)} ${unit}`, label]}/>
+              formatter={(v: any) => [`${v.toFixed(1)} ${unit}`, label]} />
             <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2.5} fill={`url(#g-${metricKey})`}
               activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />
             <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }} />
