@@ -10,6 +10,17 @@ const REF = {
   F: { piept: 90, talie: 72, fesieri: 98, biceps: 27, spate: 84, coapse: 54, gambe: 36 },
 };
 
+// ── Measurement zone colors ──
+const Z = {
+  piept:   '#a855f7',  // purple
+  talie:   '#f59e0b',  // amber
+  fesieri: '#ec4899',  // pink
+  biceps:  '#06b6d4',  // cyan
+  spate:   '#10b981',  // emerald
+  coapse:  '#6366f1',  // indigo
+  gambe:   '#8b5cf6',  // violet
+};
+
 function sc(val: number | null, ref: number): number {
   if (val == null) return 1;
   return 0.75 + (val / ref) * 0.25;
@@ -64,21 +75,25 @@ function buildGeo(sections: CS[], heightCm: number): THREE.BufferGeometry {
 function buildLimbGeo(path: { x: number; y: number; z: number; r: number }[]): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   const pos: number[] = [], nrm: number[] = [], idx: number[] = [];
-  const S = 12; // segments around limb
+  const S = 12;
 
   for (let p = 0; p < path.length; p++) {
     const pt = path[p];
-    // direction to next/prev for orientation
     const next = path[Math.min(p + 1, path.length - 1)];
     const prev = path[Math.max(p - 1, 0)];
     const dx = next.x - prev.x, dy = next.y - prev.y, dz = next.z - prev.z;
     const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-    // up direction
     const ux = dx / len, uy = dy / len, uz = dz / len;
-    // perpendicular axes (crude but works)
     let px = -uz, py = 0, pz = ux;
-    const pl = Math.sqrt(px * px + pz * pz) || 1;
+    const pl = Math.sqrt(px * px + py * py + pz * pz) || 1;
     px /= pl; pz /= pl;
+    // If arm is mostly horizontal, use Y-up as reference
+    if (Math.abs(uy) < 0.3) {
+      // cross product of dir with Y-up
+      const cx = uz, cz = -ux;
+      const cl = Math.sqrt(cx * cx + cz * cz) || 1;
+      px = cx / cl; py = 0; pz = cz / cl;
+    }
     const qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
 
     for (let i = 0; i <= S; i++) {
@@ -153,7 +168,7 @@ function getDims(entry: Entry, gender: 'M' | 'F', bfMult: number): BodyDims {
   };
 }
 
-// ── Build torso cross-sections (feet → neck, NO head) ──
+// ── Build torso cross-sections (feet to neck) ──
 
 function buildTorsoSections(d: BodyDims): CS[] {
   return [
@@ -179,51 +194,65 @@ function buildTorsoSections(d: BodyDims): CS[] {
   ];
 }
 
-// ── Build arm path ──
+// ── Build arm path — T-POSE (horizontal) ──
 
 function buildArmPath(d: BodyDims, side: 1 | -1): { x: number; y: number; z: number; r: number }[] {
   const h = d.height;
   const toY = (frac: number) => (frac - 0.5) * h;
-  const shoulderX = side * d.shoulderR * 0.92;
   const shoulderY = toY(0.71);
-  const elbowX = side * (d.shoulderR * 0.6);
-  const elbowY = toY(0.52);
-  const wristX = side * (d.shoulderR * 0.5);
-  const wristY = toY(0.36);
-  const handX = side * (d.shoulderR * 0.48);
-  const handY = toY(0.32);
+  const shoulderX = side * d.shoulderR * 0.92;
+
+  // Arm extends horizontally from shoulder
+  const upperLen = h * 0.17;
+  const foreLen = h * 0.14;
+  const handLen = h * 0.04;
+
+  const elbowX = shoulderX + side * upperLen;
+  const wristX = elbowX + side * foreLen;
+  const handX = wristX + side * handLen;
+
+  // Very slight natural droop toward hand
+  const drop = -1.5;
 
   return [
-    { x: shoulderX, y: shoulderY, z: 0, r: d.bicepR * 1.1 },
-    { x: shoulderX * 0.97, y: shoulderY - 5, z: 0, r: d.bicepR * 1.05 },
-    { x: (shoulderX + elbowX) / 2, y: (shoulderY + elbowY) / 2, z: 1, r: d.bicepR },
-    { x: elbowX * 1.02, y: elbowY + 3, z: 1, r: d.bicepR * 0.85 },
-    { x: elbowX, y: elbowY, z: 1, r: d.forearmR * 1.05 },
-    { x: elbowX * 0.99, y: elbowY - 4, z: 0.5, r: d.forearmR },
-    { x: (elbowX + wristX) / 2, y: (elbowY + wristY) / 2, z: 0, r: d.forearmR * 0.9 },
-    { x: wristX, y: wristY + 3, z: 0, r: d.wristR * 1.1 },
-    { x: wristX, y: wristY, z: 0, r: d.wristR },
-    // Hand (flattened)
-    { x: handX, y: handY + 3, z: 0, r: d.wristR * 1.3 },
-    { x: handX, y: handY, z: 0, r: d.wristR * 1.2 },
-    { x: handX, y: handY - 3, z: 0, r: d.wristR * 0.5 },
+    // Shoulder cap
+    { x: shoulderX, y: shoulderY, z: 0, r: d.bicepR * 1.15 },
+    { x: shoulderX + side * 3, y: shoulderY, z: 0, r: d.bicepR * 1.1 },
+    // Upper arm (biceps zone)
+    { x: shoulderX + side * upperLen * 0.2, y: shoulderY + drop * 0.1, z: 0.5, r: d.bicepR * 1.05 },
+    { x: shoulderX + side * upperLen * 0.4, y: shoulderY + drop * 0.2, z: 0.8, r: d.bicepR },
+    { x: shoulderX + side * upperLen * 0.6, y: shoulderY + drop * 0.35, z: 0.8, r: d.bicepR * 0.95 },
+    { x: shoulderX + side * upperLen * 0.8, y: shoulderY + drop * 0.5, z: 0.5, r: d.bicepR * 0.88 },
+    // Elbow
+    { x: elbowX, y: shoulderY + drop * 0.6, z: 0.3, r: d.forearmR * 1.05 },
+    // Forearm
+    { x: elbowX + side * foreLen * 0.2, y: shoulderY + drop * 0.65, z: 0, r: d.forearmR },
+    { x: elbowX + side * foreLen * 0.5, y: shoulderY + drop * 0.75, z: 0, r: d.forearmR * 0.9 },
+    { x: elbowX + side * foreLen * 0.8, y: shoulderY + drop * 0.85, z: 0, r: d.forearmR * 0.8 },
+    // Wrist
+    { x: wristX, y: shoulderY + drop * 0.9, z: 0, r: d.wristR * 1.1 },
+    { x: wristX + side * 1, y: shoulderY + drop * 0.92, z: 0, r: d.wristR },
+    // Hand
+    { x: handX - side * 2, y: shoulderY + drop * 0.95, z: 0, r: d.wristR * 1.3 },
+    { x: handX, y: shoulderY + drop, z: 0, r: d.wristR * 1.1 },
+    { x: handX + side * 2, y: shoulderY + drop, z: 0, r: d.wristR * 0.4 },
   ];
 }
 
-// ── Head sections (neck top → crown) ──
+// ── Head sections ──
 
 function buildHeadSections(d: BodyDims): CS[] {
   const hr = d.headRx, hz = d.headRz;
   return [
     { y: 0.78, rx: d.neckR * 0.9, rz: d.neckR * 0.85 },
-    { y: 0.80, rx: hr * 0.75, rz: hz * 0.7 },    // jaw narrow
-    { y: 0.82, rx: hr * 0.88, rz: hz * 0.82 },    // jaw widen
-    { y: 0.85, rx: hr * 0.98, rz: hz * 0.95 },    // cheeks
-    { y: 0.88, rx: hr, rz: hz },                    // widest (ears)
-    { y: 0.91, rx: hr * 0.98, rz: hz * 0.96 },    // temple
-    { y: 0.94, rx: hr * 0.92, rz: hz * 0.9 },     // forehead
-    { y: 0.97, rx: hr * 0.75, rz: hz * 0.7 },     // top
-    { y: 1.00, rx: hr * 0.15, rz: hz * 0.15 },    // crown
+    { y: 0.80, rx: hr * 0.75, rz: hz * 0.7 },
+    { y: 0.82, rx: hr * 0.88, rz: hz * 0.82 },
+    { y: 0.85, rx: hr * 0.98, rz: hz * 0.95 },
+    { y: 0.88, rx: hr, rz: hz },
+    { y: 0.91, rx: hr * 0.98, rz: hz * 0.96 },
+    { y: 0.94, rx: hr * 0.92, rz: hz * 0.9 },
+    { y: 0.97, rx: hr * 0.75, rz: hz * 0.7 },
+    { y: 1.00, rx: hr * 0.15, rz: hz * 0.15 },
   ];
 }
 
@@ -245,6 +274,39 @@ function VisceralGlow({ vf, waistY }: { vf: number; waistY: number }) {
     <mesh ref={ref} position={[0, waistY, 2]}>
       <sphereGeometry args={[1, 16, 12]} />
       <meshBasicMaterial color="#ff3b3b" transparent opacity={intensity} depthWrite={false} />
+    </mesh>
+  );
+}
+
+// ── Measurement band ring (horizontal ring around body) ──
+
+function BodyBand({ yFrac, rx, rz, color, height }: {
+  yFrac: number; rx: number; rz: number; color: string; height: number;
+}) {
+  const y = (yFrac - 0.5) * height;
+  return (
+    <mesh position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, rz / (rx || 1), 1]}>
+      <ringGeometry args={[rx * 0.92, rx * 1.02, 48]} />
+      <meshPhongMaterial
+        color={color} transparent opacity={0.65}
+        side={THREE.DoubleSide} emissive={color} emissiveIntensity={0.25}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+// ── Arm measurement band (ring perpendicular to horizontal arm) ──
+
+function ArmBand({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
+  return (
+    <mesh position={[x, y, 0]} rotation={[0, 0, Math.PI / 2]}>
+      <ringGeometry args={[r * 0.88, r * 1.05, 32]} />
+      <meshPhongMaterial
+        color={color} transparent opacity={0.65}
+        side={THREE.DoubleSide} emissive={color} emissiveIntensity={0.25}
+        depthWrite={false}
+      />
     </mesh>
   );
 }
@@ -279,19 +341,13 @@ function BodyMesh({ entry, gender }: { entry: Entry; gender: 'M' | 'F' }) {
   const bf = entry.bodyFat;
   const vf = entry.visceralFat;
 
-  // Fat dims (full) and lean dims (slimmer)
   const fatDims = useMemo(() => getDims(entry, gender, 1), [entry, gender]);
   const leanDims = useMemo(() => getDims(entry, gender, 0.88), [entry, gender]);
 
-  // Torso geometries
   const fatTorso = useMemo(() => buildGeo(buildTorsoSections(fatDims), height), [fatDims, height]);
   const leanTorso = useMemo(() => buildGeo(buildTorsoSections(leanDims), height), [leanDims, height]);
-
-  // Head geometries
   const fatHead = useMemo(() => buildGeo(buildHeadSections(fatDims), height), [fatDims, height]);
   const leanHead = useMemo(() => buildGeo(buildHeadSections(leanDims), height), [leanDims, height]);
-
-  // Arm geometries (fat + lean, both sides)
   const fatArmR = useMemo(() => buildLimbGeo(buildArmPath(fatDims, 1)), [fatDims]);
   const fatArmL = useMemo(() => buildLimbGeo(buildArmPath(fatDims, -1)), [fatDims]);
   const leanArmR = useMemo(() => buildLimbGeo(buildArmPath(leanDims, 1)), [leanDims]);
@@ -300,9 +356,14 @@ function BodyMesh({ entry, gender }: { entry: Entry; gender: 'M' | 'F' }) {
   const fatOp = bf != null ? Math.min(0.3, Math.max(0.05, (bf / 100) * 0.7)) : 0.08;
   const waistY = (0.56 - 0.5) * height;
 
+  // Arm bicep band position (middle of upper arm, at shoulder height)
+  const toY = (frac: number) => (frac - 0.5) * height;
+  const shoulderY = toY(0.71);
+  const bicepBandX = leanDims.shoulderR * 0.92 + height * 0.17 * 0.4;
+
   return (
     <group>
-      {/* ── FAT LAYERS (outer) ── */}
+      {/* FAT LAYERS */}
       {bf != null && (
         <>
           <Layer geo={fatTorso} color="#ff6b35" opacity={fatOp} depthWrite={false} shininess={30} />
@@ -312,32 +373,61 @@ function BodyMesh({ entry, gender }: { entry: Entry; gender: 'M' | 'F' }) {
         </>
       )}
 
-      {/* ── LEAN LAYERS (inner) ── */}
+      {/* LEAN LAYERS */}
       <Layer geo={leanTorso} color={accent} opacity={0.35} shininess={80} specular={0x666666} />
       <Layer geo={leanHead} color={accent} opacity={0.35} shininess={80} specular={0x666666} />
       <Layer geo={leanArmR} color={accent} opacity={0.35} shininess={80} specular={0x666666} />
       <Layer geo={leanArmL} color={accent} opacity={0.35} shininess={80} specular={0x666666} />
 
-      {/* ── WIREFRAME CONTOUR ── */}
+      {/* WIREFRAME */}
       <Layer geo={leanTorso} color={accent} opacity={0.06} wireframe />
       <Layer geo={leanHead} color={accent} opacity={0.06} wireframe />
       <Layer geo={leanArmR} color={accent} opacity={0.06} wireframe />
       <Layer geo={leanArmL} color={accent} opacity={0.06} wireframe />
 
-      {/* ── VISCERAL FAT ── */}
+      {/* VISCERAL FAT */}
       {vf != null && vf > 0 && <VisceralGlow vf={vf} waistY={waistY} />}
+
+      {/* ── MEASUREMENT BANDS ── */}
+      {/* Piept (chest) — purple */}
+      {entry.piept != null && (
+        <BodyBand yFrac={0.65} rx={leanDims.chestRx} rz={leanDims.chestRz} color={Z.piept} height={height} />
+      )}
+      {/* Talie (waist) — amber */}
+      {entry.talie != null && (
+        <BodyBand yFrac={0.56} rx={leanDims.waistRx} rz={leanDims.waistRz} color={Z.talie} height={height} />
+      )}
+      {/* Fesieri (hips) — pink */}
+      {entry.fesieri != null && (
+        <BodyBand yFrac={0.50} rx={leanDims.hipRx} rz={leanDims.hipRz} color={Z.fesieri} height={height} />
+      )}
+      {/* Coapse (thighs) — indigo */}
+      <BodyBand yFrac={0.40} rx={leanDims.thighR} rz={leanDims.thighR * 0.9} color={Z.coapse} height={height} />
+      {/* Gambe (calves) — violet */}
+      <BodyBand yFrac={0.12} rx={leanDims.calfR} rz={leanDims.calfR * 0.85} color={Z.gambe} height={height} />
+      {/* Biceps — cyan (both arms) */}
+      {entry.biceps != null && (
+        <>
+          <ArmBand x={bicepBandX} y={shoulderY - 0.3} r={leanDims.bicepR} color={Z.biceps} />
+          <ArmBand x={-bicepBandX} y={shoulderY - 0.3} r={leanDims.bicepR} color={Z.biceps} />
+        </>
+      )}
     </group>
   );
 }
 
-// ── Measurement stat pill ──
+// ── Colored measurement pill ──
 
-function Pill({ label, value, unit }: { label: string; value: number | null; unit: string }) {
+function Pill({ label, value, unit, color }: { label: string; value: number | null; unit: string; color?: string }) {
   if (value == null) return null;
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <span className="text-[8px] text-slate-500 font-bold uppercase">{label}</span>
+      style={{
+        background: color ? `${color}12` : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.06)'}`,
+      }}>
+      {color && <div className="w-2 h-2 rounded-full" style={{ background: color, opacity: 0.8 }} />}
+      <span className="text-[8px] font-bold uppercase" style={{ color: color || '#64748b' }}>{label}</span>
       <span className="font-mono text-[11px] font-black text-slate-300">{value.toFixed(1)}</span>
       <span className="text-[8px] text-slate-600">{unit}</span>
     </div>
@@ -355,7 +445,7 @@ export default function Body3D({ entry, gender }: Props) {
     <div className="w-full">
       <div style={{ height: 380 }}>
         <Canvas
-          camera={{ position: [0, 10, 220], fov: 32, near: 1, far: 600 }}
+          camera={{ position: [0, 15, 300], fov: 34, near: 1, far: 600 }}
           gl={{ alpha: true, antialias: true }}
           style={{ background: 'transparent' }}
         >
@@ -369,8 +459,8 @@ export default function Body3D({ entry, gender }: Props) {
           <OrbitControls
             enablePan={false}
             enableZoom={true}
-            minDistance={120}
-            maxDistance={350}
+            minDistance={150}
+            maxDistance={450}
             minPolarAngle={Math.PI * 0.2}
             maxPolarAngle={Math.PI * 0.8}
             autoRotate
@@ -379,13 +469,13 @@ export default function Body3D({ entry, gender }: Props) {
         </Canvas>
       </div>
 
-      {/* ── Measurement pills below 3D view ── */}
+      {/* ── Measurement pills with zone colors ── */}
       <div className="flex flex-wrap justify-center gap-2 mt-2">
-        <Pill label="Piept" value={entry.piept} unit="cm" />
-        <Pill label="Talie" value={entry.talie} unit="cm" />
-        <Pill label="Fesieri" value={entry.fesieri} unit="cm" />
-        <Pill label="Biceps" value={entry.biceps} unit="cm" />
-        <Pill label="Spate" value={entry.spate} unit="cm" />
+        <Pill label="Piept" value={entry.piept} unit="cm" color={Z.piept} />
+        <Pill label="Talie" value={entry.talie} unit="cm" color={Z.talie} />
+        <Pill label="Fesieri" value={entry.fesieri} unit="cm" color={Z.fesieri} />
+        <Pill label="Biceps" value={entry.biceps} unit="cm" color={Z.biceps} />
+        <Pill label="Spate" value={entry.spate} unit="cm" color={Z.spate} />
         <Pill label="Weight" value={entry.kg} unit="kg" />
         <Pill label="BF" value={entry.bodyFat} unit="%" />
       </div>
