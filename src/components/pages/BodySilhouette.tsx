@@ -32,8 +32,8 @@ function scale(val: number | null, ref: number): number {
 function bmiScale(kg: number | null, gender: 'M' | 'F'): number {
   if (kg == null) return 1;
   const h = AVG_HEIGHT[gender] / 100;
-  const bmi = kg / (h * h);
-  return 0.82 + (bmi / 23) * 0.18;
+  const bmi = Math.min(kg / (h * h), 35); // cap visual at BMI 35
+  return 0.88 + (bmi / 25) * 0.12;
 }
 
 function lerp(a: number | null, b: number | null, t: number): number | null {
@@ -94,7 +94,7 @@ function buildTorso(entry: Entry, gender: 'M' | 'F', bfOverride?: number): strin
   const sThigh = scale(estimateCoapse(entry, gender), ref.coapse);
   const sCalf = scale(estimateGambe(entry, gender), ref.gambe);
 
-  const bfFactor = bfOverride ?? (entry.bodyFat != null ? 0.88 + (entry.bodyFat / 100) * 0.3 : 1);
+  const bfFactor = bfOverride ?? (entry.bodyFat != null ? 0.92 + (Math.min(entry.bodyFat, 35) / 100) * 0.18 : 1);
   const bmiW = bfOverride != null ? 1 : bmiScale(entry.kg, gender);
   const bf = bfFactor * bmiW;
 
@@ -200,7 +200,7 @@ function buildArm(entry: Entry, gender: 'M' | 'F', side: 1 | -1, bfOverride?: nu
   const height = AVG_HEIGHT[gender];
 
   const sBicep = scale(entry.biceps, ref.biceps);
-  const bfFactor = bfOverride ?? (entry.bodyFat != null ? 0.88 + (entry.bodyFat / 100) * 0.3 : 1);
+  const bfFactor = bfOverride ?? (entry.bodyFat != null ? 0.92 + (Math.min(entry.bodyFat, 35) / 100) * 0.18 : 1);
   const bmiW = bfOverride != null ? 1 : bmiScale(entry.kg, gender);
   const bf = bfFactor * bmiW;
   const sChest = scale(entry.piept, ref.piept);
@@ -325,9 +325,10 @@ export default function BodySilhouette({ entries, gender }: Props) {
   const kgDelta = interpolated.kg != null && firstEntry.kg != null ? interpolated.kg - firstEntry.kg : null;
 
   const fatOpacity = bf != null ? Math.min(0.35, Math.max(0.05, (bf / 100) * 0.8)) : 0.1;
-  const vfIntensity = vf != null ? Math.min(0.6, Math.max(0, (vf / 15) * 0.6)) : 0;
-  const vfRx = vf != null ? 20 + vf * 2.5 : 0;
-  const vfRy = vf != null ? 25 + vf * 3 : 0;
+  const vfCapped = vf != null ? Math.min(vf, 15) : 0;
+  const vfIntensity = vf != null ? Math.min(0.4, Math.max(0, (vfCapped / 15) * 0.4)) : 0;
+  const vfRx = vf != null ? 12 + vfCapped * 1.2 : 0;
+  const vfRy = vf != null ? 15 + vfCapped * 1.5 : 0;
 
   // Measurement band widths (based on actual torso body widths at each level)
   const sChest = scale(interpolated.piept, REF[gender].piept);

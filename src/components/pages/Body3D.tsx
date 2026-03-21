@@ -141,10 +141,10 @@ function getDims(entry: Entry, gender: 'M' | 'F', bfMult: number): BodyDims {
   const sHips = sc(entry.fesieri, ref.fesieri), sBicep = sc(entry.biceps, ref.biceps);
   const sThigh = sc(estThigh(entry, gender), ref.coapse);
   const sCalf = sc(estCalf(entry, gender), ref.gambe);
-  const bfBase = entry.bodyFat != null ? 0.88 + (entry.bodyFat / 100) * 0.3 : 1;
-  const bmiW = entry.kg != null ? 0.82 + ((entry.kg / ((h / 100) ** 2)) / 23) * 0.18 : 1;
+  const bfBase = entry.bodyFat != null ? 0.92 + (Math.min(entry.bodyFat, 35) / 100) * 0.18 : 1;
+  const bmiW = entry.kg != null ? 0.88 + (Math.min((entry.kg / ((h / 100) ** 2)), 35) / 25) * 0.12 : 1;
   const bf = bfBase * bmiW * bfMult;
-  const bellyPush = entry.bodyFat != null ? 1 + (entry.bodyFat / 100) * 0.6 : 1;
+  const bellyPush = entry.bodyFat != null ? 1 + (Math.min(entry.bodyFat, 35) / 100) * 0.35 : 1;
 
   return {
     height: h, isFemale,
@@ -260,8 +260,9 @@ function buildHeadSections(d: BodyDims): CS[] {
 
 function VisceralGlow({ vf, waistY }: { vf: number; waistY: number }) {
   const ref = useRef<THREE.Mesh>(null!);
-  const intensity = Math.min(0.6, (vf / 15) * 0.6);
-  const rx = 5 + vf * 1.0, ry = 6 + vf * 1.2, rz = 4 + vf * 0.8;
+  const capped = Math.min(vf, 15); // cap visual at 15
+  const intensity = Math.min(0.45, (capped / 15) * 0.45);
+  const rx = 4 + capped * 0.5, ry = 5 + capped * 0.6, rz = 3 + capped * 0.4;
 
   useFrame(({ clock }) => {
     if (ref.current) {
