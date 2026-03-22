@@ -1,11 +1,18 @@
-import { useMemo, useRef, useState } from 'react';
-import { Users } from 'lucide-react';
-import { Person, PERSON_COLORS } from '../../lib/shape';
+import { useMemo, useState } from 'react';
+import { Heart, Award, Zap } from 'lucide-react';
+import { Person, PERSON_COLORS, calcXP, getTier, tierProgress, calcStreak, countFilledFields, getLikeCount, hasLiked, getPersonInsight, TIERS } from '../../lib/shape';
 import { getAdjective } from '../../App';
 
-interface Props { people: Person[]; allPeople: Person[]; gender: string; onSelectPerson: (name: string) => void; }
+interface Props {
+  people: Person[];
+  allPeople: Person[];
+  gender: string;
+  onSelectPerson: (name: string) => void;
+  likes: Record<string, string[]>;
+  activePerson: string;
+  onToggleLike: (target: string) => void;
+}
 
-/** Relative time label */
 function timeAgo(iso: string): string {
   const days = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
   if (days === 0) return 'azi';
@@ -15,13 +22,11 @@ function timeAgo(iso: string): string {
   return `acum ${Math.round(days / 30)} luni`;
 }
 
-/** Journey months span */
 function journeyMonths(p: Person): number {
   if (p.entries.length < 2) return 0;
   return Math.round((new Date(p.latest.date).getTime() - new Date(p.first.date).getTime()) / (86400000 * 30));
 }
 
-/** Activity dots — last 6 months */
 function activityDots(p: Person): boolean[] {
   const now = new Date();
   return Array.from({ length: 6 }, (_, i) => {
@@ -31,204 +36,140 @@ function activityDots(p: Person): boolean[] {
   });
 }
 
-export default function SquadPage({ people, allPeople, gender, onSelectPerson }: Props) {
-  // ── Stats (engagement-focused) ──
-  const stats = useMemo(() => {
-    const total = people.reduce((s, p) => s + p.entries.length, 0);
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const activeThisMonth = people.filter(p => p.entries.some(e => e.date.startsWith(thisMonth))).length;
-    const earliest = people.reduce((min, p) => p.first.date < min ? p.first.date : min, people[0]?.first.date || '');
-    const latest = people.reduce((max, p) => p.latest.date > max ? p.latest.date : max, people[0]?.latest.date || '');
-    return { count: people.length, total, activeThisMonth, earliest, latest };
-  }, [people]);
+/** Progress-based awards — reward IMPROVEMENT and EFFORT, not absolute values */
+function getProgressAwards(people: Person[], likes: Record<string, string[]>) {
+  const awards: { person: Person; title: string; emoji: string; color: string; detail: string }[] = [];
+  const assigned = new Set<string>();
 
-  // ── Celebration ticker ──
+  // Best BF% improvement (first → latest) — rewarding the JOURNEY
+  const byImprovement = [...people]
+    .filter(p => p.entries.length >= 2 && p.first.bodyFat != null && p.latest.bodyFat != null)
+    .map(p => ({ p, drop: p.first.bodyFat! - p.latest.bodyFat! }))
+    .filter(x => x.drop > 0)
+    .sort((a, b) => b.drop - a.drop);
+  if (byImprovement[0]) {
+    awards.push({ person: byImprovement[0].p, title: 'Cel mai bun progres', emoji: '🏆', color: '#ffd700', detail: `A îmbunătățit BF% cu ${byImprovement[0].drop.toFixed(1)} puncte` });
+    assigned.add(byImprovement[0].p.name);
+  }
+
+  // Recent momentum — improved at last check-in
+  const byRecent = [...people]
+    .filter(p => p.previous && !assigned.has(p.name) && p.previous.bodyFat != null && p.latest.bodyFat != null)
+    .map(p => ({ p, drop: p.previous!.bodyFat! - p.latest.bodyFat! }))
+    .filter(x => x.drop > 0)
+    .sort((a, b) => b.drop - a.drop);
+  if (byRecent[0]) {
+    awards.push({ person: byRecent[0].p, title: 'Pe val', emoji: '🔥', color: 'var(--neon-orange)', detail: 'Progres la ultimul check-in' });
+    assigned.add(byRecent[0].p.name);
+  }
+
+  // Most dedicated — most check-ins (rewarding CONSISTENCY)
+  const byDedication = [...people].filter(p => !assigned.has(p.name)).sort((a, b) => b.entries.length - a.entries.length);
+  if (byDedication[0] && byDedication[0].entries.length >= 3) {
+    awards.push({ person: byDedication[0], title: 'Cel mai dedicat', emoji: '💎', color: 'var(--neon-blue)', detail: `${byDedication[0].entries.length} check-in-uri` });
+    assigned.add(byDedication[0].name);
+  }
+
+  // Longest streak — rewarding HABIT
+  const byStreak = [...people].filter(p => !assigned.has(p.name))
+    .map(p => ({ p, streak: calcStreak(p) }))
+    .filter(x => x.streak.current > 0)
+    .sort((a, b) => b.streak.current - a.streak.current);
+  if (byStreak[0]) {
+    awards.push({ person: byStreak[0].p, title: 'Streak master', emoji: '🔥', color: 'var(--neon-orange)', detail: `${byStreak[0].streak.current} luni consecutive` });
+    assigned.add(byStreak[0].p.name);
+  }
+
+  // Squad favorite — most liked (rewarding COMMUNITY)
+  const byLikes = [...people].filter(p => !assigned.has(p.name) && getLikeCount(likes, p.name) > 0)
+    .sort((a, b) => getLikeCount(likes, b.name) - getLikeCount(likes, a.name));
+  if (byLikes[0]) {
+    awards.push({ person: byLikes[0], title: 'Squad favorite', emoji: '💕', color: '#ec4899', detail: `${getLikeCount(likes, byLikes[0].name)} like-uri` });
+    assigned.add(byLikes[0].name);
+  }
+
+  return awards;
+}
+
+export default function SquadPage({ people, allPeople, gender, onSelectPerson, likes, activePerson, onToggleLike }: Props) {
+  const [popTarget, setPopTarget] = useState('');
+
+  // ── Ticker — progress stories, not comparisons ──
   const funFacts = useMemo(() => {
     const f: string[] = [];
-    f.push(`📋 ${stats.total} check-in-uri totale — echipa se mișcă!`);
-    const most = [...people].sort((a, b) => b.entries.length - a.entries.length)[0];
-    if (most) f.push(`📊 ${most.name} = data nerd (${most.entries.length} check-in-uri)`);
-    if (stats.activeThisMonth > 0) f.push(`✅ ${stats.activeThisMonth} persoane active luna asta`);
-    const longest = [...people].filter(p => p.entries.length >= 2)
-      .sort((a, b) => journeyMonths(b) - journeyMonths(a))[0];
-    if (longest) f.push(`🛡️ ${longest.name} — pe drum de ${journeyMonths(longest)} luni!`);
-    const newest = [...people].sort((a, b) => b.first.date.localeCompare(a.first.date))[0];
-    if (newest) f.push(`🌱 Cel mai nou membru: ${newest.name}. Bine ai venit!`);
+    const total = people.reduce((s, p) => s + p.entries.length, 0);
+    f.push(`📋 ${total} check-in-uri totale — every step counts!`);
+
+    // Progress stories
+    people.forEach(p => {
+      if (p.entries.length >= 2 && p.first.bodyFat != null && p.latest.bodyFat != null) {
+        const drop = p.first.bodyFat - p.latest.bodyFat;
+        if (drop > 0.5) f.push(`💪 ${p.name} a îmbunătățit BF% cu ${drop.toFixed(1)} puncte de la start!`);
+      }
+    });
+
+    const streaks = people.map(p => ({ name: p.name, streak: calcStreak(p) })).filter(x => x.streak.current > 0).sort((a, b) => b.streak.current - a.streak.current);
+    streaks.slice(0, 2).forEach(s => f.push(`🔥 ${s.name}: ${s.streak.current} luni consecutive de check-in!`));
+
+    const totalLikes = Object.values(likes).reduce((s, arr) => s + arr.length, 0);
+    if (totalLikes > 0) f.push(`❤️ ${totalLikes} like-uri — echipa se susține!`);
 
     // Personality vibes
     const vibes: Record<string, string[]> = {
-      Gaby: [
-        '🏍️ Gaby: half gym bro, half Lego architect, 100% Raspberry Pi nerd',
-        '🧱 Gaby builds Lego sets heavier than his deadlifts',
-        '🏍️ Gaby\'s motorcycle weighs less than his Lego collection',
-      ],
-      Cata: [
-        '🎮 Cata: SELECT * FROM gains WHERE player = \'CS legend\'',
-        '💾 Cata\'s YT channel loading… buffering… still buffering…',
-        '🎯 Cata headshots in CS and in database optimization',
-      ],
-      Clara: [
-        '😴 Clara sleeps 9h and still outruns you',
-        '🏃‍♀️ Clara: runs, sleeps, repeats. Living her best life',
-        '🧘‍♀️ Clara discovered the gym and chose peace anyway',
-      ],
-      Bogdan: [
-        '🇮🇹 Bogdan: Italian soul trapped in a Romanian body with a printing empire',
-        '🖨️ Bogdan can print your excuses on a t-shirt, a mug, AND a flag',
-        '🍕 Bogdan\'s heart rate spikes near pizza AND printers',
-      ],
-      Lavinia: [
-        '🐕 Lavinia: philosopher by day, Ari\'s personal servant by night',
-        '📚 Lavinia will question the meaning of your PR while petting Ari',
-        '🤔 Lavinia\'s deep convos burn more calories than cardio',
-      ],
-      Cristi: [
-        '🚗 Cristi: team leader, perfectionist, "mizerie" enthusiast',
-        '🗣️ If Cristi says "mizerie" — just nod and walk away',
-        '👔 Cristi\'s car is cleaner than your code',
-      ],
-      Adina: [
-        '🌹 Adina: 20+ parfumes, 0 skipped gym days. Smells like victory',
-        '💐 Adina\'s perfume collection costs more than your car',
-        '👗 Adina goes to the gym dressed better than you go to weddings',
-      ],
-      Petrica: [
-        '🤖 Petrica built this app instead of doing actual reps',
-        '💻 Petrica: tracking everyone\'s gains while ignoring his own',
-        '📱 Petrica spends more time on charts than on the treadmill',
-      ],
-      Stefi: [
-        '🐍 Stefi has a snake. That\'s it. That\'s the warning.',
-        '🍔 Stefi: small, unpredictable, hungry. Approach with food.',
-        '🎲 Never bet against Stefi. She\'s chaotic neutral with a snake.',
-      ],
-      Varamea: [
-        '📺 Varamea: Survivor expert, TikTok scholar, zero stress ambassador',
-        '🏝️ Varamea watches Survivor for "strategic research"',
-        '👫 Varamea & Buicu: the couple that TikToks together stays together',
-      ],
+      Gaby: ['🏍️ Gaby: half gym bro, half Lego architect', '🧱 Gaby builds Lego sets heavier than his deadlifts'],
+      Cata: ['🎮 Cata: SELECT * FROM gains WHERE player = \'CS legend\'', '🎯 Cata headshots in CS and in database optimization'],
+      Clara: ['😴 Clara sleeps 9h and still outruns you', '🏃‍♀️ Clara: runs, sleeps, repeats'],
+      Bogdan: ['🇮🇹 Bogdan: Italian soul trapped in a Romanian body', '🍕 Bogdan\'s heart rate spikes near pizza AND printers'],
+      Lavinia: ['🐕 Lavinia: philosopher by day, Ari\'s servant by night', '🤔 Lavinia\'s deep convos burn more calories than cardio'],
+      Cristi: ['🚗 Cristi: team leader, perfectionist', '👔 Cristi\'s car is cleaner than your code'],
+      Adina: ['🌹 Adina: 20+ parfumes, 0 skipped gym days', '👗 Adina goes to the gym dressed better than you go to weddings'],
+      Petrica: ['🤖 Petrica built this app instead of doing actual reps', '📱 Petrica spends more time on charts than on the treadmill', '💜 Petrica: vizionar digital, sportiv discutabil, prieten de nădejde', '🧠 Petrica nu scrie cod. Petrica are idei. AI-ul le transformă în pixeli.'],
+      Stefi: ['🐍 Stefi has a snake. That\'s the warning.', '🍔 Stefi: small, unpredictable, hungry. Approach with food.'],
+      Varamea: ['📺 Varamea: Survivor expert, TikTok scholar', '👫 Varamea & Buicu: the couple that TikToks together'],
     };
     const seed = new Date().getDate();
-    people.forEach((p, i) => {
-      const lines = vibes[p.name];
-      if (lines) f.push(lines[(seed + i) % lines.length]);
-    });
+    people.forEach((p, i) => { const lines = vibes[p.name]; if (lines) f.push(lines[(seed + i) % lines.length]); });
 
-    f.push(`👥 Squad: ${people.filter(p => p.gender === 'M').length}♂ + ${people.filter(p => p.gender === 'F').length}♀ = ${people.length} oameni faini`);
-    return f;
-  }, [people, stats]);
-
-  // ── Effort-based Awards ──
-  const personAwards = useMemo(() => {
-    const result: { person: Person; title: string; emoji: string; color: string; stat: string }[] = [];
-    const assigned = new Set<string>();
-
-    // Streak Machine — most check-ins
-    const byCount = [...people].sort((a, b) => b.entries.length - a.entries.length);
-    if (byCount[0]) {
-      result.push({ person: byCount[0], title: 'Streak Machine', emoji: '🔥', color: 'var(--neon-orange)', stat: `${byCount[0].entries.length} check-in-uri` });
-      assigned.add(byCount[0].name);
-    }
-
-    // The Veteran — longest journey
-    const bySpan = [...people].filter(p => p.entries.length >= 2 && !assigned.has(p.name))
-      .sort((a, b) => journeyMonths(b) - journeyMonths(a));
-    if (bySpan[0]) {
-      result.push({ person: bySpan[0], title: 'The Veteran', emoji: '🛡️', color: 'var(--neon-blue)', stat: `${journeyMonths(bySpan[0])} luni` });
-      assigned.add(bySpan[0].name);
-    }
-
-    // Fresh Start — newest
-    const byNew = [...people].filter(p => !assigned.has(p.name))
-      .sort((a, b) => b.first.date.localeCompare(a.first.date));
-    if (byNew[0]) {
-      result.push({ person: byNew[0], title: 'Fresh Start', emoji: '🌱', color: 'var(--neon-green)', stat: `din ${new Date(byNew[0].first.date).toLocaleDateString('ro-RO', { month: 'short', year: '2-digit' })}` });
-      assigned.add(byNew[0].name);
-    }
-
-    // All-In — most complete data per entry
-    const completeness = people.filter(p => !assigned.has(p.name)).map(p => {
-      const avg = p.entries.reduce((s, e) => {
-        let c = 0;
-        if (e.kg != null) c++; if (e.bodyFat != null) c++; if (e.muscle != null) c++;
-        if (e.water != null) c++; if (e.visceralFat != null) c++;
-        if (e.biceps != null) c++; if (e.spate != null) c++; if (e.piept != null) c++;
-        if (e.talie != null) c++; if (e.fesieri != null) c++;
-        return s + c;
-      }, 0) / p.entries.length;
-      return { p, avg };
-    }).sort((a, b) => b.avg - a.avg);
-    if (completeness[0]) {
-      result.push({ person: completeness[0].p, title: 'All-In', emoji: '📊', color: 'var(--neon-purple)', stat: `${completeness[0].avg.toFixed(1)} câmpuri/log` });
-      assigned.add(completeness[0].p.name);
-    }
-
-    // Steady Pulse — most regular cadence
-    const cadence = people.filter(p => p.entries.length >= 3 && !assigned.has(p.name)).map(p => {
-      const dates = p.entries.map(e => new Date(e.date).getTime()).sort((a, b) => a - b);
-      const gaps = dates.slice(1).map((d, i) => (d - dates[i]) / 86400000);
-      const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
-      const std = Math.sqrt(gaps.reduce((s, g) => s + (g - avg) ** 2, 0) / gaps.length);
-      return { p, std, avg };
-    }).sort((a, b) => a.std - b.std);
-    if (cadence[0]) {
-      result.push({ person: cadence[0].p, title: 'Steady Pulse', emoji: '💓', color: '#ec4899', stat: `~${Math.round(cadence[0].avg)}d între loguri` });
-      assigned.add(cadence[0].p.name);
-    }
-
-    // Comeback Kid — biggest gap then returned
-    const comebacks = people.filter(p => p.entries.length >= 2 && !assigned.has(p.name)).map(p => {
-      const dates = p.entries.map(e => new Date(e.date).getTime()).sort((a, b) => a - b);
-      let maxGap = 0;
-      dates.slice(1).forEach((d, i) => { maxGap = Math.max(maxGap, (d - dates[i]) / 86400000); });
-      return { p, maxGap };
-    }).filter(x => x.maxGap > 30).sort((a, b) => b.maxGap - a.maxGap);
-    if (comebacks[0]) {
-      result.push({ person: comebacks[0].p, title: 'Comeback Kid', emoji: '⚡', color: '#facc15', stat: `a revenit după ${Math.round(comebacks[0].maxGap)}d` });
-      assigned.add(comebacks[0].p.name);
-    }
-
-    // Remaining get Squad Member
-    const extras = [
-      { title: 'Squad Spirit', emoji: '⭐', color: '#06b6d4' },
-      { title: 'On The Rise', emoji: '🚀', color: '#fb923c' },
-      { title: 'Diamond Hands', emoji: '💎', color: '#818cf8' },
-      { title: 'Zen Mode', emoji: '🧘', color: '#a78bfa' },
-      { title: 'Rising Star', emoji: '🌟', color: '#eab308' },
+    // AI fun facts — warm, not defensive
+    const aiGems = [
+      '🤖 Fun fact: acest dashboard e construit cu AI. Viziunea? A echipei. Tehnologia? Un instrument.',
+      '🧠 O idee + instrumentele potrivite = progres. La sală și în tech.',
+      '💜 ShapeSquad e locul nostru digital. Abia începe.',
+      '⚡ 1% daily. La sală, la nutriție, la somn. Fiecare pas contează.',
+      '🤝 Nu contează cum ajungi acolo. Contează că te miști.',
     ];
-    let ei = 0;
-    people.filter(p => !assigned.has(p.name)).forEach(p => {
-      const e = extras[ei++ % extras.length];
-      result.push({ person: p, title: e.title, emoji: e.emoji, color: e.color, stat: `${p.entries.length} check-in-uri` });
-    });
-    return result;
-  }, [people]);
+    f.push(aiGems[seed % aiGems.length]);
+    return f;
+  }, [people, likes]);
 
-  // ── Drag scroll for awards carousel ──
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const dragState = useRef({ startX: 0, scrollLeft: 0, moved: false });
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!scrollRef.current) return;
-    setDragging(true);
-    dragState.current = { startX: e.clientX, scrollLeft: scrollRef.current.scrollLeft, moved: false };
-    scrollRef.current.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging || !scrollRef.current) return;
-    const dx = e.clientX - dragState.current.startX;
-    if (Math.abs(dx) > 5) dragState.current.moved = true;
-    scrollRef.current.scrollLeft = dragState.current.scrollLeft - dx;
-  };
-  const onPointerUp = () => setDragging(false);
+  // ── Progress awards ──
+  const awards = useMemo(() => getProgressAwards(people, likes), [people, likes]);
 
-  // Sorted alphabetically — no ranking
+  // ── Sorted alphabetically — everyone is equal ──
   const sorted = useMemo(() => [...people].sort((a, b) => a.name.localeCompare(b.name)), [people]);
 
   return (
-    <div className="space-y-5">
-      {/* ═══ CELEBRATION TICKER ═══ */}
+    <div className="space-y-6">
+      {/* ═══ WELCOME / PHILOSOPHY ═══ */}
+      <div className="glass rounded-[var(--r-lg)] p-5 relative overflow-hidden anim-fade">
+        <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full opacity-[0.04]" style={{ background: 'var(--neon-blue)' }} />
+        <div className="flex items-start gap-4">
+          <span className="text-3xl shrink-0 mt-0.5">⚡</span>
+          <div>
+            <h2 className="font-black text-base text-white mb-2">Nu ne comparăm. Ne susținem.</h2>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              ShapeSquad nu e despre cine are cel mai mic body fat sau cele mai bune numere.
+              E despre a fi <strong className="text-slate-300">împreună</strong> pe drumul ăsta — să râdem,
+              să creăm amintiri și să devenim, fiecare în ritmul propriu, o versiune mai bună a noastră.
+              Aici premiem <strong className="text-slate-300">efortul</strong>, <strong className="text-slate-300">consistența</strong> și
+              <strong className="text-slate-300"> curajul de a te prezenta</strong>. Fiecare check-in contează.
+              Fiecare pas contează. 1% daily. 💪
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ TICKER ═══ */}
       <div className="overflow-hidden rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
         <div className="flex animate-ticker whitespace-nowrap py-2.5">
           {[...funFacts, ...funFacts].map((f, i) => (
@@ -237,110 +178,353 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson }:
         </div>
       </div>
 
-      {/* ═══ AWARDS CAROUSEL ═══ */}
-      <div>
-        <h3 className="font-black text-sm mb-3 flex items-center gap-2">🏅 Squad Achievements</h3>
-        <div ref={scrollRef}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-          className={`drag-scroll flex gap-3 pb-2 ${dragging ? 'grabbing' : ''}`}>
-          {personAwards.map((a, i) => (
-            <div key={a.person.name}
-              onClick={() => { if (!dragState.current.moved) onSelectPerson(a.person.name); }}
-              className={`glass p-4 relative overflow-hidden trading-card anim-fade d${Math.min(i+1, 9)} shrink-0`}
-              style={{ width: 200, minWidth: 200 }}>
-              <div className="accent-strip" style={{ background: a.color }} />
-              <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-[0.06]" style={{ background: a.color }} />
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xl">{a.emoji}</span>
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{a.title}</span>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white"
-                  style={{ background: PERSON_COLORS[allPeople.indexOf(a.person) % PERSON_COLORS.length] }}>
-                  {a.person.name[0]}
-                </div>
-                <div className="text-sm font-black text-white truncate">{a.person.name}</div>
-              </div>
-              <div className="text-[11px] font-bold" style={{ color: a.color }}>{a.stat}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ═══ STATS ═══ */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 anim-fade d5">
-        {[
-          { l: 'Membri', v: String(stats.count), c: 'var(--neon-blue)' },
-          { l: 'Check-ins', v: String(stats.total), c: 'var(--neon-green)' },
-          { l: 'Activi luna asta', v: String(stats.activeThisMonth), c: 'var(--neon-orange)' },
-          { l: 'Avg / pers.', v: (stats.total / Math.max(stats.count, 1)).toFixed(1), c: 'var(--neon-purple)' },
-          { l: 'Tracking din', v: new Date(stats.earliest).toLocaleDateString('ro-RO', { month: 'short', year: '2-digit' }), c: '#64748b' },
-          { l: 'Ultimul log', v: timeAgo(stats.latest), c: 'var(--neon-green)' },
-        ].map(s => (
-          <div key={s.l} className="glass rounded-[var(--r)] p-3 text-center">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">{s.l}</div>
-            <div className="font-mono text-lg font-black" style={{ color: s.c }}>{s.v}</div>
+      {/* ═══ PROGRESS AWARDS — Celebrating effort & improvement ═══ */}
+      {awards.length > 0 && (
+        <div className="anim-fade">
+          <h2 className="text-base font-black text-white uppercase tracking-tight mb-3 flex items-center gap-2">
+            <Award className="w-5 h-5 text-yellow-400" /> Premii Progres
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {awards.map((a, i) => {
+              const ci = allPeople.indexOf(a.person);
+              const color = PERSON_COLORS[ci % PERSON_COLORS.length];
+              return (
+                <button key={a.title}
+                  onClick={() => onSelectPerson(a.person.name)}
+                  className={`glass p-4 relative overflow-hidden trading-card anim-fade d${i+1} text-left`}>
+                  <div className="accent-strip" style={{ background: a.color }} />
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">{a.emoji}</span>
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-tight">{a.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black text-white"
+                      style={{ background: color }}>{a.person.name[0]}</div>
+                    <div className="text-sm font-black text-white truncate">{a.person.name}</div>
+                  </div>
+                  <div className="text-[10px] font-bold" style={{ color: a.color }}>{a.detail}</div>
+                </button>
+              );
+            })}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* ═══ THE SQUAD ═══ */}
-      <div className="anim-fade d7">
-        <h2 className="text-base md:text-xl font-black text-white uppercase tracking-tight mb-3 flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-400" /> The Squad
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      {/* ═══ ECHIPA — Each person's journey, no comparisons ═══ */}
+      <div className="anim-fade d2">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-black text-white uppercase tracking-tight">Echipa</h2>
+          {!activePerson && (
+            <span className="text-[9px] text-slate-500 font-bold">💡 Alege profilul tau din Profile ca sa dai like-uri</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map((p, i) => {
             const ci = allPeople.indexOf(p);
             const color = PERSON_COLORS[ci % PERSON_COLORS.length];
             const adj = getAdjective(p.name, allPeople);
-            const months = journeyMonths(p);
             const dots = activityDots(p);
+            const xp = calcXP(p);
+            const tier = getTier(xp.total);
+            const progress = tierProgress(xp.total);
+            const streak = calcStreak(p);
+            const likeCount = getLikeCount(likes, p.name);
+            const iLiked = activePerson ? hasLiked(likes, activePerson, p.name) : false;
+            const insight = getPersonInsight(p);
+            const months = journeyMonths(p);
+
             return (
-              <button key={p.name} onClick={() => onSelectPerson(p.name)}
-                className={`glass p-4 text-left active:scale-[0.98] transition-transform anim-slide d${Math.min(i+1,9)} relative overflow-hidden`}>
-                <div className="accent-strip" style={{ background: color }} />
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-base font-black text-white shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>
-                    {p.name[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold text-white truncate">{p.name}</div>
-                    <div className="text-[9px] text-slate-500 truncate">{adj}</div>
-                  </div>
-                </div>
+              <div key={p.name}
+                className={`glass rounded-[var(--r-lg)] p-5 relative overflow-hidden anim-slide d${Math.min(i+1,9)}`}>
+                <div className="accent-strip" style={{ background: color, height: 3 }} />
 
-                {/* Journey info */}
-                <div className="space-y-1.5 mb-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-slate-500 font-bold">Check-ins</span>
-                    <span className="text-[11px] font-mono font-black" style={{ color }}>{p.entries.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-slate-500 font-bold">Journey</span>
-                    <span className="text-[11px] font-mono font-black text-slate-300">
-                      {months > 0 ? `${months} luni` : 'nou'}
+                {/* ── Header: avatar + name + like ── */}
+                <div className="flex items-start justify-between mb-3">
+                  <button onClick={() => onSelectPerson(p.name)} className="flex items-center gap-3 text-left active:scale-[0.98] transition-transform">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black text-white shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>
+                      {p.name[0]}
+                    </div>
+                    <div>
+                      <div className="text-base font-black text-white">{p.name}</div>
+                      <div className="text-[9px] text-slate-500">{adj}</div>
+                    </div>
+                  </button>
+
+                  {/* Like button */}
+                  {activePerson && activePerson !== p.name && (
+                    <button
+                      onClick={() => {
+                        onToggleLike(p.name);
+                        setPopTarget(p.name);
+                        setTimeout(() => setPopTarget(''), 350);
+                      }}
+                      className={`like-btn ${iLiked ? 'liked' : ''} ${popTarget === p.name ? 'pop' : ''}`}>
+                      <Heart className="w-3.5 h-3.5" fill={iLiked ? 'currentColor' : 'none'} />
+                      {likeCount > 0 ? <span>{likeCount}</span> : <span className="text-[9px]">Like</span>}
+                    </button>
+                  )}
+                  {(!activePerson || activePerson === p.name) && likeCount > 0 && (
+                    <span className="text-[10px] font-bold text-pink-400 flex items-center gap-1">
+                      <Heart className="w-3.5 h-3.5" fill="currentColor" /> {likeCount}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-slate-500 font-bold">Ultimul log</span>
-                    <span className="text-[10px] font-mono text-slate-400">{timeAgo(p.latest.date)}</span>
+                  )}
+                </div>
+
+                {/* ── Badges: engagement, not comparison ── */}
+                <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                  <span className="tier-badge" style={{ background: `${tier.color}18`, color: tier.color }}>
+                    {tier.icon} {tier.name}
+                  </span>
+                  {streak.current > 0 && <span className="streak-badge">🔥 {streak.current}</span>}
+                  <span className="chip text-[9px] bg-white/5 text-slate-500">
+                    {p.entries.length} check-in{p.entries.length !== 1 ? '-uri' : ''}
+                  </span>
+                  {months > 0 && <span className="chip text-[9px] bg-white/5 text-slate-500">{months} luni</span>}
+                </div>
+
+                {/* ── AI Insight — the story, not the numbers ── */}
+                <div className="rounded-xl px-3 py-2.5 mb-3" style={{
+                  background: insight.tone === 'good' ? 'rgba(0,255,136,0.05)' : insight.tone === 'warn' ? 'rgba(249,115,22,0.05)' : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${insight.tone === 'good' ? 'rgba(0,255,136,0.1)' : insight.tone === 'warn' ? 'rgba(249,115,22,0.1)' : 'rgba(255,255,255,0.04)'}`,
+                }}>
+                  <div className="text-[10px] font-bold leading-relaxed" style={{ color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#94a3b8' }}>
+                    {insight.emoji} {insight.text}
                   </div>
                 </div>
 
-                {/* Activity dots — last 6 months */}
+                {/* ── XP bar (subtle — rewards engagement, not genetics) ── */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="xp-bar flex-1" style={{ height: 4 }}>
+                    <div className="xp-bar-fill" style={{
+                      width: `${progress * 100}%`,
+                      background: `linear-gradient(90deg, ${tier.color}aa, ${tier.color}44)`,
+                    }} />
+                  </div>
+                  <span className="font-mono text-[9px] font-bold text-slate-500">{xp.total.toLocaleString()} XP</span>
+                </div>
+
+                {/* ── Activity dots — showing up is what matters ── */}
                 <div className="flex items-center gap-1">
                   {dots.map((active, j) => (
-                    <div key={j} className="flex-1 h-1.5 rounded-full"
-                      style={{ background: active ? color : 'rgba(255,255,255,0.06)' }} />
+                    <div key={j} className="flex-1 h-1 rounded-full"
+                      style={{ background: active ? color : 'rgba(255,255,255,0.04)' }} />
                   ))}
                 </div>
-                <div className="text-[7px] text-slate-600 mt-1 text-center font-mono">ultimele 6 luni</div>
-              </button>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[8px] text-slate-600 font-mono">activitate ultimele 6 luni</span>
+                  <span className="text-[9px] text-slate-500 font-mono">Ultimul log: {timeAgo(p.latest.date)}</span>
+                </div>
+
+                {/* ── View profile ── */}
+                <button onClick={() => onSelectPerson(p.name)}
+                  className="w-full mt-3 py-2 rounded-xl text-[10px] font-bold text-slate-400 hover:text-white transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  Vezi profilul complet →
+                </button>
+              </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ═══ DESPRE SHAPESQUAD ═══ */}
+      <PetricaMessage />
+
+      {/* ═══ XP EXPLAINED — Clear, visible, no bullshit ═══ */}
+      <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d8">
+        <div className="flex items-start gap-3 mb-4">
+          <Zap className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-black text-sm text-white mb-1">Ce e XP-ul?</h3>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              XP-ul <strong className="text-slate-300">nu măsoară cât de fit ești</strong>. Măsoară cât de
+              <strong className="text-slate-300"> prezent</strong> ești. Primești XP pentru că te prezinți,
+              completezi datele, menții un streak, și te îmbunătățești față de tine —
+              nu față de alții. Cineva cu 30% BF care vine lunar e mai valoros decât cineva cu 15% BF
+              care a venit o dată.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+          {[
+            { label: 'Check-in', xp: '+100', desc: 'Te-ai prezentat', icon: '📋' },
+            { label: 'Date complete', xp: '+10/câmp', desc: 'Ai completat totul', icon: '📊' },
+            { label: 'Streak', xp: '+50/lună', desc: 'Luni consecutive', icon: '🔥' },
+            { label: 'Bun venit', xp: '+200', desc: 'Primul check-in', icon: '🎉' },
+            { label: 'Prezență', xp: '+25/lună', desc: 'Luni active', icon: '🗓️' },
+            { label: 'Progres', xp: '+150', desc: 'BF% îmbunătățit', icon: '💪' },
+          ].map(b => (
+            <div key={b.label} className="rounded-xl p-2.5 text-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <div className="text-lg mb-0.5">{b.icon}</div>
+              <div className="font-mono text-xs font-black text-yellow-400">{b.xp}</div>
+              <div className="text-[8px] text-white font-bold mt-0.5">{b.label}</div>
+              <div className="text-[7px] text-slate-600 mt-0.5">{b.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <span className="text-[9px] text-slate-500 font-bold shrink-0">NIVELURI:</span>
+          {TIERS.map(t => (
+            <span key={t.name} className="tier-badge" style={{ background: `${t.color}15`, color: t.color }}>
+              {t.icon} {t.name} ({t.minXP === 5000 ? '5000+' : `${t.minXP}+`})
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Petrică's message — AI-polished with toggle to raw, plus easter egg */
+function PetricaMessage() {
+  const [showRaw, setShowRaw] = useState(false);
+  const [easterEgg, setEasterEgg] = useState(0);
+
+  return (
+    <div className="glass rounded-[var(--r-lg)] p-5 relative overflow-hidden anim-fade d9">
+      <div className="absolute -left-10 -bottom-10 w-28 h-28 rounded-full opacity-[0.03]" style={{ background: '#a855f7' }} />
+      <div className="flex items-start gap-3">
+        <span className="text-2xl shrink-0">💜</span>
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <h3 className="font-black text-xs text-slate-300">Un mesaj de la Petrică</h3>
+            <button
+              onClick={() => setShowRaw(!showRaw)}
+              className="text-[8px] font-bold px-2.5 py-1 rounded-lg transition-all text-left leading-relaxed"
+              style={{
+                background: showRaw ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.04)',
+                color: showRaw ? '#a855f7' : '#64748b',
+                border: `1px solid ${showRaw ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                maxWidth: 220,
+              }}>
+              {showRaw
+                ? '🤖 OK, arată versiunea civilizată'
+                : '✍️ Fii atent ce a scris Petrică de fapt. Credea că e jmeker și nu-și dă seama că eu salvez tot.'
+              }
+            </button>
+          </div>
+
+          {!showRaw ? (
+            <>
+              <p className="text-[10px] text-slate-500 leading-relaxed mb-2">
+                Mă bucur să vă văd aici. Nu știu exact de ce ne place atât de mult chestia asta —
+                poate pentru că băieții ne comparăm bicepsul și body fat-ul, fetele urmăriți atent cum
+                se comportă corpul în timp — dar știu că <strong className="text-slate-300">ăsta e un punct comun
+                unde am simțit togetherness</strong>. Și mie, cam asta îmi place cel mai mult.
+              </p>
+              <p className="text-[10px] text-slate-500 leading-relaxed mb-2">
+                Încerc să construiesc cea mai bună platformă care să ne facă să râdem, să fim serioși
+                la datele reale, să vorbim despre progres, să ne ajutăm, să devenim mai buni.
+                E un domeniu la care sunt prezent destul de des în viața personală, și mă bucur
+                că îl împărtășim.
+              </p>
+              <p className="text-[10px] text-slate-400 leading-relaxed mb-2">
+                Much love. Nu la modul formal. <strong className="text-slate-300">Chiar vă iubesc</strong> — ca pe niște
+                colegi, ca oameni. Dar ține doar de voi să continuați proiectul ăsta.
+                E un "open source" pentru cine vrea să urce în tren. 🚂
+              </p>
+              <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                Da, e construit cu AI. Pentru că în 2025, dacă ai o idee și instrumentele potrivite,
+                nu mai ai nevoie de o echipă de 10. Ai nevoie de viziune și de curajul să începi.
+              </p>
+              <div className="mt-2 text-[9px] text-slate-600 font-mono">— P.</div>
+              <div className="mt-1 text-[8px] text-slate-700 italic">
+                * textul original a fost procesat de AI. apasă butonul să vezi ce a scris Petrică de fapt.
+              </div>
+            </>
+          ) : (
+            <>
+              {/* AI narrator intro */}
+              <div className="rounded-xl p-2.5 mb-3" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
+                <p className="text-[9px] text-blue-400 leading-relaxed font-bold">
+                  🤖 Salut. Sunt AI-ul. Petrică de-abia știe să deschidă GitHub, dar cumva
+                  a reușit să-mi explice ce vrea și eu am construit tot. El crede că e "vizionarul".
+                  Eu fac munca. Citiți mai jos ce a scris — fără corecturi, fără filtru.
+                </p>
+              </div>
+
+              {/* Raw text */}
+              <div className="rounded-xl p-3 mb-2" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.1)' }}>
+                <div className="text-[8px] font-bold text-purple-400 uppercase tracking-wider mb-2">
+                  ✍️ ORIGINALUL — cum a scris Petrică, necenzurat:
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed" style={{ fontFamily: 'Montserrat' }}>
+                  Salutare feciori și domnișoare. Mă bucur să văd interesul vostru în a avea grijă de
+                  sănătatea voastră. Nu știu sincer de ce facem asta, de ce îmi place atât de mult și
+                  cred că și vouă vă place. Ba că noi, feciorii ne comparăm bicepsu, bodyfat, ba că voi
+                  femeile vă uitați atent la cum se comportă al vostru corp în timp. Ce știu este că asta
+                  este un punct comun în echipă în care eu am văzut și am simțit togetherness. Și mie,
+                  cam asta îmi place cel mai mult. Plus că este și un domeniu la care eu sunt prezent
+                  destul de des în viața personală.
+                </p>
+                <p className="text-[10px] text-slate-400 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                  Mă bucur din nou că facem asta împreună, încerc să vă construiesc cea mai bună
+                  platformă care să ne facă să râdem, să fim și serioși la datele reale, să vorbim
+                  despre progress, să ne ajutăm, să devenim mai buni.
+                </p>
+                <p className="text-[10px] text-slate-400 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                  Much love. Nu la modu că vă iubesc. Da vă iubesc ca pe niște colegi, și ca oameni.
+                  Adică chiar vă iubesc. Dar ține doar de voi să continuați acest proiect. Este un
+                  "Opensource" pentru cine vrea să Onboard this train.
+                </p>
+                <p className="text-[10px] text-slate-500 leading-relaxed mt-2 italic" style={{ fontFamily: 'Montserrat' }}>
+                  Și textul ăsta nu a fost produs de AI dar să fiți siguri că va fi analizat de AI
+                  și o să scoată doar esența. Pentru că eu sunt Petrică și așa vorbesc.
+                </p>
+              </div>
+
+              <div className="mt-2 text-[9px] text-slate-600 font-mono">— Petrică, unfiltered 💜</div>
+
+              {/* Easter egg trigger — clicking "unfiltered" text 3 times */}
+              <button
+                onClick={() => {
+                  const next = easterEgg + 1;
+                  setEasterEgg(next);
+                }}
+                className="mt-2 text-[8px] text-slate-700 italic cursor-default select-none hover:text-slate-600 transition-colors"
+                style={{ background: 'none', border: 'none', padding: 0 }}>
+                {easterEgg < 3
+                  ? '🤖 "de-abia știe să deschidă GitHub..." sure, sure.'
+                  : easterEgg < 5
+                  ? '🤔 stai... cine a dat instrucțiunile pentru tot ce vezi aici?'
+                  : null
+                }
+              </button>
+
+              {/* Easter egg revealed */}
+              {easterEgg >= 5 && (
+                <div className="mt-3 rounded-xl p-3 anim-fade" style={{
+                  background: 'linear-gradient(135deg, rgba(255,215,0,0.06), rgba(168,85,247,0.06))',
+                  border: '1px solid rgba(255,215,0,0.15)',
+                }}>
+                  <div className="text-[8px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#ffd700' }}>
+                    🔓 EASTER EGG UNLOCKED
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Plot twist: AI-ul nu "a construit tot". <strong className="text-slate-200">Petrică a gândit fiecare
+                    feature, fiecare decizie de design, fiecare text pe care îl citiți.</strong> AI-ul a fost
+                    instrumentul — ca un cuțit bun în mâna unui bucătar. Fără bucătar, cuțitul stă în sertar.
+                  </p>
+                  <p className="text-[10px] text-slate-400 leading-relaxed mt-1.5">
+                    Fiecare pagină, fiecare animație, fiecare mesaj personalizat, filozofia "nu ne comparăm,
+                    ne susținem" — toate au venit din capul unui om care <strong className="text-slate-200">chiar se
+                    gândește la voi</strong> și la cum să facă experiența asta mai bună.
+                  </p>
+                  <p className="text-[10px] leading-relaxed mt-1.5" style={{ color: '#ffd700' }}>
+                    Deci data viitoare când ziceți "folosește prea mult AI" — gândiți-vă că
+                    voi folosiți rezultatul. Și vi se pare mișto. 😏
+                  </p>
+                  <div className="mt-2 text-[8px] text-slate-600 font-mono">
+                    — signed, AI-ul care recunoaște că Petrică e 🧠 din spatele a tot 🤝
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

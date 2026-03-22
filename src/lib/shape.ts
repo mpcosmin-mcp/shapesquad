@@ -427,6 +427,195 @@ export function getPersonInsight(p: Person): { text: string; emoji: string; tone
   return { text: 'Colectează mai multe date pentru analiza trendului.', emoji: '📌', tone: 'neutral' };
 }
 
+// ── XP System ─────────────────────────────────────────
+export interface XPBreakdown {
+  total: number;
+  checkIns: number;
+  completeness: number;
+  streakBonus: number;
+  firstEntry: number;
+  journeyBonus: number;
+  improvement: number;
+}
+
+export interface Tier {
+  name: string;
+  icon: string;
+  color: string;
+  glow: string;
+  minXP: number;
+  maxXP: number;
+}
+
+export interface StreakInfo {
+  current: number;
+  longest: number;
+}
+
+export const TIERS: Tier[] = [
+  { name: 'Bronze', icon: '🥉', color: '#cd7f32', glow: 'rgba(205,127,50,0.3)', minXP: 0, maxXP: 499 },
+  { name: 'Silver', icon: '🥈', color: '#c0c0c0', glow: 'rgba(192,192,192,0.3)', minXP: 500, maxXP: 1499 },
+  { name: 'Gold', icon: '🥇', color: '#ffd700', glow: 'rgba(255,215,0,0.3)', minXP: 1500, maxXP: 2999 },
+  { name: 'Diamond', icon: '💎', color: '#b9f2ff', glow: 'rgba(185,242,255,0.4)', minXP: 3000, maxXP: 4999 },
+  { name: 'Legend', icon: '👑', color: '#ff6b35', glow: 'rgba(255,107,53,0.4)', minXP: 5000, maxXP: Infinity },
+];
+
+export function getTier(xp: number): Tier {
+  for (let i = TIERS.length - 1; i >= 0; i--) {
+    if (xp >= TIERS[i].minXP) return TIERS[i];
+  }
+  return TIERS[0];
+}
+
+export function getNextTier(xp: number): Tier | null {
+  const current = getTier(xp);
+  const idx = TIERS.indexOf(current);
+  return idx < TIERS.length - 1 ? TIERS[idx + 1] : null;
+}
+
+export function tierProgress(xp: number): number {
+  const tier = getTier(xp);
+  const next = getNextTier(xp);
+  if (!next) return 1; // Legend = maxed
+  const range = next.minXP - tier.minXP;
+  return Math.min(1, (xp - tier.minXP) / range);
+}
+
+/** Count non-null measurement fields in an entry (max 10) */
+export function countFilledFields(e: Entry): number {
+  let c = 0;
+  if (e.kg != null) c++;
+  if (e.bodyFat != null) c++;
+  if (e.visceralFat != null) c++;
+  if (e.muscle != null) c++;
+  if (e.water != null) c++;
+  if (e.biceps != null) c++;
+  if (e.spate != null) c++;
+  if (e.piept != null) c++;
+  if (e.talie != null) c++;
+  if (e.fesieri != null) c++;
+  return c;
+}
+
+export function calcStreak(p: Person): StreakInfo {
+  // Get all YYYY-MM keys from entries
+  const months = new Set(p.entries.map(e => e.date.slice(0, 7)));
+
+  // Current streak: walk backwards from current month
+  const now = new Date();
+  let current = 0;
+  let y = now.getFullYear();
+  let m = now.getMonth(); // 0-indexed
+  // Allow current month to not have entry yet — start from last month if needed
+  const thisKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+  if (!months.has(thisKey)) {
+    // Step back one month
+    m--;
+    if (m < 0) { m = 11; y--; }
+  }
+  for (let i = 0; i < 60; i++) { // max 5 years
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    if (months.has(key)) {
+      current++;
+      m--;
+      if (m < 0) { m = 11; y--; }
+    } else {
+      break;
+    }
+  }
+
+  // Longest streak: scan all months from first to last entry
+  let longest = 0;
+  if (p.entries.length > 0) {
+    const firstDate = new Date(p.first.date);
+    const lastDate = new Date(p.latest.date);
+    let streak = 0;
+    let cy = firstDate.getFullYear();
+    let cm = firstDate.getMonth();
+    const endY = lastDate.getFullYear();
+    const endM = lastDate.getMonth();
+    while (cy < endY || (cy === endY && cm <= endM)) {
+      const key = `${cy}-${String(cm + 1).padStart(2, '0')}`;
+      if (months.has(key)) {
+        streak++;
+        longest = Math.max(longest, streak);
+      } else {
+        streak = 0;
+      }
+      cm++;
+      if (cm > 11) { cm = 0; cy++; }
+    }
+  }
+
+  return { current, longest: Math.max(longest, current) };
+}
+
+export function calcXP(p: Person): XPBreakdown {
+  // Check-ins: 100 per entry
+  const checkIns = p.entries.length * 100;
+
+  // Completeness: 10 per filled field per entry
+  const completeness = p.entries.reduce((s, e) => s + countFilledFields(e) * 10, 0);
+
+  // Streak bonus: current streak * 50
+  const streak = calcStreak(p);
+  const streakBonus = streak.current * 50;
+
+  // First entry bonus
+  const firstEntry = 200;
+
+  // Journey bonus: 25 per distinct month
+  const monthSet = new Set(p.entries.map(e => e.date.slice(0, 7)));
+  const journeyBonus = monthSet.size * 25;
+
+  // Improvement: 150 if BF dropped >2%
+  let improvement = 0;
+  if (p.entries.length > 1 && p.first.bodyFat != null && p.latest.bodyFat != null) {
+    if (p.first.bodyFat - p.latest.bodyFat > 2) improvement = 150;
+  }
+
+  return {
+    total: checkIns + completeness + streakBonus + firstEntry + journeyBonus + improvement,
+    checkIns,
+    completeness,
+    streakBonus,
+    firstEntry,
+    journeyBonus,
+    improvement,
+  };
+}
+
+// ── Likes (localStorage) ──────────────────────────────
+const LIKES_KEY = 'shapesquad_likes';
+
+export function getLikes(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(LIKES_KEY) || '{}');
+  } catch { return {}; }
+}
+
+export function toggleLike(from: string, to: string): Record<string, string[]> {
+  if (!from || !to || from === to) return getLikes();
+  const likes = getLikes();
+  const arr = likes[to] || [];
+  if (arr.includes(from)) {
+    likes[to] = arr.filter(n => n !== from);
+    if (likes[to].length === 0) delete likes[to];
+  } else {
+    likes[to] = [...arr, from];
+  }
+  try { localStorage.setItem(LIKES_KEY, JSON.stringify(likes)); } catch {}
+  return likes;
+}
+
+export function getLikeCount(likes: Record<string, string[]>, name: string): number {
+  return (likes[name] || []).length;
+}
+
+export function hasLiked(likes: Record<string, string[]>, from: string, to: string): boolean {
+  return (likes[to] || []).includes(from);
+}
+
 // ── Colors ─────────────────────────────────────────────
 export const COLORS = [
   '#ff6b35', '#4ecdc4', '#ffe66d', '#f7fff7', '#6b5ce7',

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Zap, User, Users, TrendingUp, Swords, ClipboardList, Plus } from 'lucide-react';
-import { fetchAllData, groupByPerson, Entry, Person, PERSON_COLORS } from './lib/shape';
+import { Zap, User, Trophy, TrendingUp, Swords, ClipboardList, Plus } from 'lucide-react';
+import { fetchAllData, groupByPerson, Entry, Person, PERSON_COLORS, getLikes, toggleLike } from './lib/shape';
 import MyProfilePage from './components/pages/MyProfilePage';
 import SquadPage from './components/pages/SquadPage';
 import TrendsPage from './components/pages/TrendsPage';
@@ -12,7 +12,7 @@ type View = 'profile' | 'squad' | 'trends' | 'compare' | 'history' | 'log';
 
 const VIEWS: { id: View; label: string; Icon: any }[] = [
   { id: 'profile', label: 'Profile', Icon: User },
-  { id: 'squad', label: 'Squad', Icon: Users },
+  { id: 'squad', label: 'Social', Icon: Trophy },
   { id: 'trends', label: 'Trends', Icon: TrendingUp },
   { id: 'compare', label: 'Compare', Icon: Swords },
   { id: 'history', label: 'History', Icon: ClipboardList },
@@ -78,6 +78,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activePerson, setActivePerson] = useState('');
   const [gender, setGender] = useState<'all' | 'M' | 'F'>('all');
+  const [likes, setLikes] = useState<Record<string, string[]>>(() => getLikes());
+
+  const handleToggleLike = useCallback((target: string) => {
+    if (!activePerson) return;
+    const updated = toggleLike(activePerson, target);
+    setLikes({ ...updated });
+  }, [activePerson]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,8 +106,8 @@ export default function App() {
   const page = () => {
     if (loading) return <Loader />;
     switch (view) {
-      case 'profile': return <MyProfilePage person={active} people={people} onSelect={selectPerson} />;
-      case 'squad': return <SquadPage people={filtered} allPeople={people} gender={gender} onSelectPerson={selectPerson} />;
+      case 'profile': return <MyProfilePage person={active} people={people} onSelect={selectPerson} likes={likes} />;
+      case 'squad': return <SquadPage people={filtered} allPeople={people} gender={gender} onSelectPerson={selectPerson} likes={likes} activePerson={activePerson} onToggleLike={handleToggleLike} />;
       case 'trends': return <TrendsPage people={filtered} allPeople={people} activePerson={activePerson || (people[0]?.name ?? '')} />;
       case 'compare': return <ComparePage people={filtered} allPeople={people} />;
       case 'history': return <HistoryPage entries={entries} people={people} />;
@@ -170,8 +177,9 @@ export default function App() {
       </nav>
 
       {/* Footer - hidden on mobile (nav covers it) */}
-      <footer className="hidden md:block max-w-7xl mx-auto py-6 text-center text-slate-600 text-xs font-medium">
-        Creat pentru cei care transpiră la sală și cei care transpiră căutând telecomanda. 🍕✨
+      <footer className="hidden md:block max-w-7xl mx-auto py-6 text-center text-slate-600 text-xs font-medium space-y-1">
+        <div>Creat pentru cei care transpiră la sală și cei care transpiră căutând telecomanda. 🍕✨</div>
+        <div className="text-[9px] text-slate-700">Made with 💜 + AI · ShapeSquad © echipa noastră</div>
       </footer>
     </div>
   );

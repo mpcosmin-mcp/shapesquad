@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries } from '../../lib/shape';
+import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries, calcXP, getTier, getNextTier, tierProgress, calcStreak, getLikeCount } from '../../lib/shape';
 import { CrosshairCursor, FloatingTooltip, TimeframeBar as TFBar, monthTicks } from '../ChartCrosshair';
 import { getAdjective } from '../../App';
 import BodySilhouette from './BodySilhouette';
 
-interface Props { person: Person | null; people: Person[]; onSelect?: (name: string) => void; }
+import { Heart } from 'lucide-react';
 
-export default function MyProfilePage({ person: p, people, onSelect }: Props) {
+interface Props { person: Person | null; people: Person[]; onSelect?: (name: string) => void; likes: Record<string, string[]>; }
+
+export default function MyProfilePage({ person: p, people, onSelect, likes }: Props) {
   // Welcome picker if no person selected
   if (!p) {
     return (
@@ -61,6 +63,14 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
     return ranked.findIndex(x => x.name === p.name) + 1;
   }, [people, p]);
 
+  // XP & Gamification
+  const xp = useMemo(() => calcXP(p), [p]);
+  const tier = getTier(xp.total);
+  const nextTier = getNextTier(xp.total);
+  const progress = tierProgress(xp.total);
+  const streak = calcStreak(p);
+  const likeCount = getLikeCount(likes, p.name);
+
   const keyStats = [
     { label: 'Weight', val: last.kg, first: first.kg, unit: 'kg', lower: true },
     { label: 'Body Fat', val: last.bodyFat, first: first.bodyFat, unit: '%', lower: true },
@@ -89,11 +99,22 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
           <div className="flex-1">
             <h1 className="font-black text-2xl tracking-tight text-white">{p.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
+              <span className="tier-badge text-[10px]" style={{ background: `${tier.color}18`, color: tier.color }}>
+                {tier.icon} {tier.name}
+              </span>
               <span className="chip text-[10px]" style={{ background: `${color}20`, color }}>{adj}</span>
               <span className="chip bg-white/5 text-slate-400 text-[10px]">{p.gender === 'F' ? '♀ Female' : '♂ Male'}</span>
               <span className="chip bg-white/5 text-slate-400 text-[10px]">{p.entries.length} measurements</span>
               {months > 0 && <span className="chip bg-white/5 text-slate-400 text-[10px]">{months} months</span>}
               {bfRank > 0 && <span className="chip text-[10px]" style={{ background: 'rgba(0,255,136,0.1)', color: 'var(--neon-green)' }}>#{bfRank} in Squad</span>}
+              {streak.current > 0 && (
+                <span className="streak-badge text-[10px]">🔥 {streak.current} month streak</span>
+              )}
+              {likeCount > 0 && (
+                <span className="chip text-[10px]" style={{ background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}>
+                  <Heart className="w-3 h-3 inline" fill="currentColor" /> {likeCount} {likeCount === 1 ? 'like' : 'likes'}
+                </span>
+              )}
             </div>
             {/* AI Insight */}
             {(() => {
@@ -111,6 +132,74 @@ export default function MyProfilePage({ person: p, people, onSelect }: Props) {
             })()}
           </div>
         </div>
+      </div>
+
+      {/* ═══ XP PROGRESS ═══ */}
+      <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d1 relative overflow-hidden">
+        <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-[0.04]" style={{ background: tier.color }} />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{tier.icon}</span>
+            <div>
+              <div className="text-xs font-black uppercase tracking-widest" style={{ color: tier.color }}>{tier.name}</div>
+              <div className="font-mono text-2xl font-black text-white">{xp.total.toLocaleString()} <span className="text-sm text-slate-500">XP</span></div>
+            </div>
+          </div>
+          {nextTier && (
+            <div className="text-right">
+              <div className="text-[9px] text-slate-500 font-bold uppercase">Next: {nextTier.icon} {nextTier.name}</div>
+              <div className="font-mono text-xs text-slate-400">{(nextTier.minXP - xp.total).toLocaleString()} XP to go</div>
+            </div>
+          )}
+          {!nextTier && (
+            <div className="text-right">
+              <div className="text-[10px] font-black uppercase" style={{ color: tier.color }}>MAX LEVEL</div>
+            </div>
+          )}
+        </div>
+
+        {/* XP progress bar */}
+        <div className="xp-bar mb-4" style={{ height: 10 }}>
+          <div className="xp-bar-fill" style={{
+            width: `${progress * 100}%`,
+            background: `linear-gradient(90deg, ${tier.color}, ${tier.color}88)`,
+            boxShadow: `0 0 12px ${tier.glow}`,
+          }} />
+        </div>
+
+        {/* XP Breakdown */}
+        <div className="xp-grid">
+          {[
+            { label: 'Check-ins', value: xp.checkIns, icon: '📋' },
+            { label: 'Completeness', value: xp.completeness, icon: '📊' },
+            { label: 'Streak Bonus', value: xp.streakBonus, icon: '🔥' },
+            { label: 'Welcome XP', value: xp.firstEntry, icon: '🎉' },
+            { label: 'Journey', value: xp.journeyBonus, icon: '🗓️' },
+            { label: 'Improvement', value: xp.improvement, icon: '💪' },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{item.icon} {item.label}</div>
+              <div className="font-mono text-sm font-black text-white mt-0.5">+{item.value.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Streak info */}
+        {(streak.current > 0 || streak.longest > 0) && (
+          <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+            {streak.current > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="streak-badge text-sm">🔥 {streak.current}</span>
+                <span className="text-[10px] text-slate-500 font-bold">current streak</span>
+              </div>
+            )}
+            {streak.longest > streak.current && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold text-slate-400">Best: {streak.longest} months</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ═══ KEY STATS ═══ */}
