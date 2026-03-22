@@ -381,7 +381,7 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
 
 /** Petrică's message — AI-polished with toggle to raw, plus easter egg */
 function PetricaMessage() {
-  const [showRaw, setShowRaw] = useState(false);
+  const [showRaw, setShowRaw] = useState(true);
   const [easterEgg, setEasterEgg] = useState(0);
 
   return (
@@ -422,7 +422,7 @@ function PetricaMessage() {
                 onClick={() => { setShowRaw(true); setEasterEgg(0); }}
                 className="mt-1 text-[7px] text-slate-700 italic hover:text-slate-500 transition-colors cursor-default"
                 style={{ background: 'none', border: 'none', padding: 0 }}>
-                * procesat de AI · vezi originalul
+                * vezi versiunea AI-polished
               </button>
             </>
           ) : (
@@ -472,7 +472,7 @@ function PetricaMessage() {
                   onClick={() => { setShowRaw(false); setEasterEgg(0); }}
                   className="text-[7px] text-slate-700 hover:text-slate-500 transition-colors"
                   style={{ background: 'none', border: 'none', padding: 0 }}>
-                  🤖 versiunea civilizată
+                  🤖 vezi mesajul original
                 </button>
               </div>
 
