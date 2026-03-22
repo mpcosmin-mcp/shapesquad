@@ -553,10 +553,10 @@ function PetricaMessage() {
                         Bun. Ești gay dacă ai crezut tot ce a zis ăla de mai sus. 😂
                       </p>
                       <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                        Hai să fiu sincer cu voi. Sunt un bărbat foarte insecure pe ce face.
-                        Nu am nici măcar idee despre ceea ce fac jumătate din timp.
-                        Consum tokeni ca nebunul, nu sunt eficient, și probabil am construit
-                        acest dashboard în de 3 ori mai mult timp decât ar fi trebuit.
+                        Hai să fiu sincer cu voi. Nu prea am idee despre ce fac
+                        jumătate din timp când vine vorba de tech. Consum tokeni ca nebunul,
+                        nu sunt eficient, și probabil am construit acest dashboard
+                        în de 3 ori mai mult timp decât ar fi trebuit.
                       </p>
                       <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
                         Dar știți ce? <strong className="text-white">L-am construit.</strong> Într-o
