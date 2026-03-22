@@ -476,60 +476,67 @@ function PetricaMessage() {
                 </button>
               </div>
 
-              {/* Easter egg — sequential layers, 1 click = 1 new layer stacked */}
+              {/* Easter egg — diverse interactions per layer */}
               <div className="mt-3 space-y-2">
-                {/* Layer 1 — always visible in raw mode */}
-                <button
-                  onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
-                  className="w-full text-left rounded-lg p-2 transition-all hover:bg-white/[0.02]"
-                  style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.06)' }}>
+                {/* Layer 1 — click the suspicious text */}
+                <div className="rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.06)' }}>
                   <p className="text-[9px] text-blue-400 leading-relaxed">
-                    🤖 Fun fact: Petrică a construit asta în 2025. Cu un AI care habar n-avea ce e un "biceps".
+                    🤖 Fun fact: Petrică a construit asta în{' '}
+                    <button onClick={() => easterEgg < 1 && setEasterEgg(1)}
+                      className={`font-bold underline decoration-dotted cursor-pointer transition-all ${easterEgg >= 1 ? 'text-purple-400 line-through' : 'hover:text-white'}`}
+                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
+                      2025
+                    </button>
+                    . Cu un AI care habar n-avea ce e un "biceps".
                     Omul i-a explicat AI-ului ce e body fat ca și cum i-ar explica bunicii ce e Bitcoin.
-                    <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 1 ? '▸ apasă' : ''}</span>
                   </p>
-                </button>
+                </div>
 
-                {/* Layer 2 — year confusion */}
+                {/* Layer 2 — hover reveal (click on mobile) */}
                 {easterEgg >= 1 && (
-                  <button
-                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
-                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
-                    style={{ background: 'rgba(168,85,247,0.03)', border: '1px solid rgba(168,85,247,0.06)' }}>
+                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(168,85,247,0.03)', border: '1px solid rgba(168,85,247,0.06)' }}>
                     <p className="text-[9px] text-purple-400 leading-relaxed">
-                      🤖 Stai. Am zis 2025? Pardon. Suntem în 2024. Nici datele calendaristice nu le
-                      nimerește Petrică. Omul ăsta literalmente nu știe în ce an trăiește.
-                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 2 ? '▸' : ''}</span>
+                      🤖 Stai. Am zis 2025? Pardon. Suntem în{' '}
+                      <button onClick={() => easterEgg < 2 && setEasterEgg(2)}
+                        className={`font-bold underline decoration-dotted cursor-pointer transition-all ${easterEgg >= 2 ? 'text-red-400 line-through' : 'hover:text-white'}`}
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
+                        2024
+                      </button>
+                      . Nici datele calendaristice nu le nimerește Petrică.
+                      Omul ăsta literalmente nu știe în ce an trăiește.
                     </p>
-                  </button>
+                  </div>
                 )}
 
-                {/* Layer 3 — wait what */}
+                {/* Layer 3 — the real year */}
                 {easterEgg >= 2 && (
-                  <button
-                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
-                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
-                    style={{ background: 'rgba(255,59,59,0.03)', border: '1px solid rgba(255,59,59,0.06)' }}>
+                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(255,59,59,0.03)', border: '1px solid rgba(255,59,59,0.06)' }}>
                     <p className="text-[9px] text-red-400 leading-relaxed">
-                      🤖 Îți dai seama că nu suntem nici în 2024, nu? Suntem în 2026. Eu sunt AI-ul
-                      și nici eu nu mai știu. Petrică m-a încurcat. Omul ăsta... e haos pur.
-                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 3 ? '▸' : ''}</span>
+                      🤖 Îți dai seama că nu suntem nici în 2024, nu? Suntem în{' '}
+                      <strong className="text-white">2026</strong>. Eu sunt AI-ul și nici eu nu mai știu.
+                      Petrică m-a încurcat. Omul ăsta... e haos pur.
                     </p>
-                  </button>
+                    <button onClick={() => easterEgg < 3 && setEasterEgg(3)}
+                      className="mt-1 text-[8px] text-slate-600 hover:text-slate-400 transition-colors"
+                      style={{ background: 'none', border: 'none', padding: 0 }}>
+                      🤔 dar stai... cine a gândit toate astea?
+                    </button>
+                  </div>
                 )}
 
-                {/* Layer 4 — the turn */}
+                {/* Layer 4 — the turn, type to unlock */}
                 {easterEgg >= 3 && (
-                  <button
-                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
-                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
-                    style={{ background: 'rgba(255,215,0,0.03)', border: '1px solid rgba(255,215,0,0.06)' }}>
+                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(255,215,0,0.03)', border: '1px solid rgba(255,215,0,0.06)' }}>
                     <p className="text-[9px] text-yellow-400 leading-relaxed">
-                      🤖 OK hai că ești bun la d-astea cu stress test. Bravo.
-                      Acum serios — dă-i drumul, Petrică. Vorbește tu. Fără mine. Fără filtru.
-                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 4 ? '▸ ultimul, promit' : ''}</span>
+                      🤖 OK hai că ești bun la d-astea. Bravo. Vrei să auzi ce are Petrică de zis?
+                      For real? Fără mine, fără filtru, fără an calendaristic greșit?
                     </p>
-                  </button>
+                    <button onClick={() => easterEgg < 4 && setEasterEgg(4)}
+                      className="mt-1.5 text-[9px] font-bold px-3 py-1.5 rounded-lg transition-all hover:scale-105"
+                      style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.15)', color: '#ffd700' }}>
+                      🔓 Deblochează mesajul real
+                    </button>
+                  </div>
                 )}
 
                 {/* FINAL — Petrică's real message */}
