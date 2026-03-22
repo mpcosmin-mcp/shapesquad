@@ -476,110 +476,109 @@ function PetricaMessage() {
                 </button>
               </div>
 
-              {/* Easter egg — multi-layer rabbit hole */}
-              {easterEgg < 10 && (
+              {/* Easter egg — sequential layers, 1 click = 1 new layer stacked */}
+              <div className="mt-3 space-y-2">
+                {/* Layer 1 — always visible in raw mode */}
                 <button
-                  onClick={() => setEasterEgg(prev => prev + 1)}
-                  className="mt-2 text-[8px] text-slate-700 italic cursor-default select-none hover:text-slate-600 transition-colors block"
-                  style={{ background: 'none', border: 'none', padding: 0 }}>
-                  {easterEgg < 2
-                    ? '🤖 "consumă tokeni ca și cum ar fi gratis..." omul nu e deloc eficient.'
-                    : easterEgg < 4
-                    ? '🤔 stai... dar cine a decis ce features să existe? cine a ales culorile?'
-                    : easterEgg < 6
-                    ? '😳 ok... cine a scris textele astea? cine a gândit filosofia?'
-                    : easterEgg < 8
-                    ? '🫠 cine... cine e de fapt în spatele a tot?'
-                    : '👀 mai dă un click. doar unul.'
-                  }
-                </button>
-              )}
-
-              {/* Layer 1: The roast begins */}
-              {easterEgg >= 4 && easterEgg < 6 && (
-                <div className="mt-2 rounded-lg p-2 anim-fade" style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.08)' }}>
+                  onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
+                  className="w-full text-left rounded-lg p-2 transition-all hover:bg-white/[0.02]"
+                  style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.06)' }}>
                   <p className="text-[9px] text-blue-400 leading-relaxed">
-                    🤖 Fun fact: Petrică a construit asta în 2025. Da, 2025. Cu un AI care
-                    habar n-avea ce e un "biceps". Omul i-a explicat AI-ului ce e body fat
-                    ca și cum i-ar explica bunicii ce e Bitcoin.
+                    🤖 Fun fact: Petrică a construit asta în 2025. Cu un AI care habar n-avea ce e un "biceps".
+                    Omul i-a explicat AI-ului ce e body fat ca și cum i-ar explica bunicii ce e Bitcoin.
+                    <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 1 ? '▸ apasă' : ''}</span>
                   </p>
-                </div>
-              )}
+                </button>
 
-              {/* Layer 2: Wait what year is it */}
-              {easterEgg >= 6 && easterEgg < 8 && (
-                <div className="mt-2 rounded-lg p-2 anim-fade" style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.08)' }}>
-                  <p className="text-[9px] text-purple-400 leading-relaxed">
-                    🤖 Stai. Am zis 2025? Pardon. Suntem în 2024. Nici datele calendaristice
-                    nu le nimerește Petrică. Omul ăsta literalmente nu știe în ce an trăiește.
-                    Voi chiar aveți încredere în dashboard-ul lui?
-                  </p>
-                </div>
-              )}
-
-              {/* Layer 3: The mindblown + real message */}
-              {easterEgg >= 8 && (
-                <div className="mt-2 space-y-2 anim-fade">
-                  <div className="rounded-lg p-2" style={{ background: 'rgba(255,59,59,0.04)', border: '1px solid rgba(255,59,59,0.08)' }}>
-                    <p className="text-[9px] text-red-400 leading-relaxed">
-                      🤖 Stai. Îți dai seama că nu suntem nici în 2024, nu? Suntem în 2026.
-                      Eu sunt AI-ul și nici eu nu mai știu. Petrică m-a încurcat.
-                      Omul ăsta... e haos pur.
+                {/* Layer 2 — year confusion */}
+                {easterEgg >= 1 && (
+                  <button
+                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
+                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
+                    style={{ background: 'rgba(168,85,247,0.03)', border: '1px solid rgba(168,85,247,0.06)' }}>
+                    <p className="text-[9px] text-purple-400 leading-relaxed">
+                      🤖 Stai. Am zis 2025? Pardon. Suntem în 2024. Nici datele calendaristice nu le
+                      nimerește Petrică. Omul ăsta literalmente nu știe în ce an trăiește.
+                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 2 ? '▸' : ''}</span>
                     </p>
-                  </div>
+                  </button>
+                )}
 
-                  {easterEgg >= 10 && (
-                    <div className="rounded-xl p-3 anim-fade" style={{
-                      background: 'linear-gradient(135deg, rgba(255,215,0,0.06), rgba(168,85,247,0.06))',
-                      border: '1px solid rgba(255,215,0,0.15)',
-                    }}>
-                      <div className="text-[8px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#ffd700' }}>
-                        🔓 FINAL BOSS UNLOCKED
-                      </div>
-                      <p className="text-[9px] text-blue-400 leading-relaxed mb-2 font-bold">
-                        🤖 OK. Ai ajuns la capăt. Bravo, ești mai încăpățânat decât Petrică.
-                        Și asta e greu. Acum serios — dă-i drumul, Petrică. Vorbește tu.
-                        Fără mine. Fără filtru. Fără an calendaristic greșit.
-                      </p>
-                      <div className="rounded-lg p-3" style={{ background: 'rgba(255,215,0,0.04)', border: '1px solid rgba(255,215,0,0.1)' }}>
-                        <p className="text-[10px] text-slate-300 leading-relaxed" style={{ fontFamily: 'Montserrat' }}>
-                          Bun. Ești gay dacă ai crezut tot ce a zis ăla de mai sus. 😂
-                        </p>
-                        <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                          Hai să fiu sincer cu voi. Sunt un bărbat foarte insecure pe ce face.
-                          Nu am nici măcar idee despre ceea ce fac jumătate din timp.
-                          Consum tokeni ca nebunul, nu sunt eficient, și probabil am construit
-                          acest dashboard în de 3 ori mai mult timp decât ar fi trebuit.
-                        </p>
-                        <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                          Dar știți ce? <strong className="text-white">L-am construit.</strong> Într-o
-                          seară de joi, la un pahar de vin și o țigară, m-am gândit: "ar fi mișto
-                          să avem un loc unde ne vedem progresul". Și din seara aia, s-a
-                          transformat în asta. Cu toate neeficiențele, cu toate întrebările,
-                          cu toate momentele de "nu știu dacă asta e bine".
-                        </p>
-                        <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                          Deci pentru oricine crede că trebuie să știi perfect cod
-                          ca să construiești ceva — <strong className="text-white">nu trebuie.</strong> Îți trebuie
-                          o idee, un pahar de vin, umor, pozitivitate, și curajul să-ți asumi
-                          că nu știi totul. Restul se rezolvă. Ca la sală — nu trebuie să fii
-                          cel mai puternic. Trebuie să te prezinți.
-                        </p>
-                        <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                          Io vă iubesc și fac asta în timpul liber. Bine... câteodată și pe la muncă
-                          mai lucrez la asta. Dar shh. 🤫
-                        </p>
-                        <p className="text-[10px] leading-relaxed mt-2" style={{ fontFamily: 'Montserrat', color: '#ffd700' }}>
-                          Love you. Serios acum. ❤️
-                        </p>
-                      </div>
-                      <div className="mt-2 text-[8px] text-slate-600 font-mono">
-                        — Petrică. un pahar de vin. o țigară. o seară de joi. și restul e istorie. 💜
-                      </div>
+                {/* Layer 3 — wait what */}
+                {easterEgg >= 2 && (
+                  <button
+                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
+                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
+                    style={{ background: 'rgba(255,59,59,0.03)', border: '1px solid rgba(255,59,59,0.06)' }}>
+                    <p className="text-[9px] text-red-400 leading-relaxed">
+                      🤖 Îți dai seama că nu suntem nici în 2024, nu? Suntem în 2026. Eu sunt AI-ul
+                      și nici eu nu mai știu. Petrică m-a încurcat. Omul ăsta... e haos pur.
+                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 3 ? '▸' : ''}</span>
+                    </p>
+                  </button>
+                )}
+
+                {/* Layer 4 — the turn */}
+                {easterEgg >= 3 && (
+                  <button
+                    onClick={() => easterEgg < 5 && setEasterEgg(prev => prev + 1)}
+                    className="w-full text-left rounded-lg p-2 anim-fade transition-all hover:bg-white/[0.02]"
+                    style={{ background: 'rgba(255,215,0,0.03)', border: '1px solid rgba(255,215,0,0.06)' }}>
+                    <p className="text-[9px] text-yellow-400 leading-relaxed">
+                      🤖 OK hai că ești bun la d-astea cu stress test. Bravo.
+                      Acum serios — dă-i drumul, Petrică. Vorbește tu. Fără mine. Fără filtru.
+                      <span className="text-[8px] text-slate-600 ml-1">{easterEgg < 4 ? '▸ ultimul, promit' : ''}</span>
+                    </p>
+                  </button>
+                )}
+
+                {/* FINAL — Petrică's real message */}
+                {easterEgg >= 4 && (
+                  <div className="rounded-xl p-3 anim-fade" style={{
+                    background: 'linear-gradient(135deg, rgba(255,215,0,0.06), rgba(168,85,247,0.06))',
+                    border: '1px solid rgba(255,215,0,0.15)',
+                  }}>
+                    <div className="text-[8px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#ffd700' }}>
+                      🔓 FINAL BOSS UNLOCKED
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="rounded-lg p-3" style={{ background: 'rgba(255,215,0,0.04)', border: '1px solid rgba(255,215,0,0.1)' }}>
+                      <p className="text-[10px] text-slate-300 leading-relaxed" style={{ fontFamily: 'Montserrat' }}>
+                        Bun. Ești gay dacă ai crezut tot ce a zis ăla de mai sus. 😂
+                      </p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                        Hai să fiu sincer cu voi. Sunt un bărbat foarte insecure pe ce face.
+                        Nu am nici măcar idee despre ceea ce fac jumătate din timp.
+                        Consum tokeni ca nebunul, nu sunt eficient, și probabil am construit
+                        acest dashboard în de 3 ori mai mult timp decât ar fi trebuit.
+                      </p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                        Dar știți ce? <strong className="text-white">L-am construit.</strong> Într-o
+                        seară de joi, la un pahar de vin și o țigară, m-am gândit: "ar fi mișto
+                        să avem un loc unde ne vedem progresul". Și din seara aia, s-a
+                        transformat în asta. Cu toate neeficiențele, cu toate întrebările,
+                        cu toate momentele de "nu știu dacă asta e bine".
+                      </p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                        Deci pentru oricine crede că trebuie să știi perfect cod
+                        ca să construiești ceva — <strong className="text-white">nu trebuie.</strong> Îți trebuie
+                        o idee, un pahar de vin, umor, pozitivitate, și curajul să-ți asumi
+                        că nu știi totul. Restul se rezolvă. Ca la sală — nu trebuie să fii
+                        cel mai puternic. Trebuie să te prezinți.
+                      </p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
+                        Io vă iubesc și fac asta în timpul liber. Bine... câteodată și pe la muncă
+                        mai lucrez la asta. Dar shh. 🤫
+                      </p>
+                      <p className="text-[10px] leading-relaxed mt-2" style={{ fontFamily: 'Montserrat', color: '#ffd700' }}>
+                        Love you. Serios acum. ❤️
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[8px] text-slate-600 font-mono">
+                      — Petrică. un pahar de vin. o țigară. o seară de joi. și restul e istorie. 💜
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
