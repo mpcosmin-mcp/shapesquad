@@ -1,15 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Person, METRICS, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries, calcXP, getTier, getNextTier, tierProgress, calcStreak, getLikeCount } from '../../lib/shape';
+import { Person, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries, calcStreak, getLikeCount } from '../../lib/shape';
 import { CrosshairCursor, FloatingTooltip, TimeframeBar as TFBar, monthTicks } from '../ChartCrosshair';
 import { getAdjective } from '../../App';
-import BodySilhouette from './BodySilhouette';
-
-import { Heart } from 'lucide-react';
+import { Heart, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props { person: Person | null; people: Person[]; onSelect?: (name: string) => void; likes: Record<string, string[]>; }
 
 export default function MyProfilePage({ person: p, people, onSelect, likes }: Props) {
+  const [showDetails, setShowDetails] = useState(false);
+
   // Welcome picker if no person selected
   if (!p) {
     return (
@@ -54,62 +54,49 @@ export default function MyProfilePage({ person: p, people, onSelect, likes }: Pr
   const adj = getAdjective(p.name, people);
   const first = p.entries[0];
   const last = p.latest;
+  const prev = p.previous;
   const months = p.entries.length > 1
-    ? Math.max(1, Math.round((new Date(last.date).getTime() - new Date(first.date).getTime()) / (30*24*3600*1000)))
+    ? Math.max(1, Math.round((new Date(last.date).getTime() - new Date(first.date).getTime()) / (30 * 24 * 3600 * 1000)))
     : 0;
 
-  const bfRank = useMemo(() => {
-    const ranked = people.filter(x => x.latest.bodyFat != null).sort((a, b) => (a.latest.bodyFat ?? 99) - (b.latest.bodyFat ?? 99));
-    return ranked.findIndex(x => x.name === p.name) + 1;
-  }, [people, p]);
-
-  // XP & Gamification
-  const xp = useMemo(() => calcXP(p), [p]);
-  const tier = getTier(xp.total);
-  const nextTier = getNextTier(xp.total);
-  const progress = tierProgress(xp.total);
   const streak = calcStreak(p);
   const likeCount = getLikeCount(likes, p.name);
 
-  const keyStats = [
-    { label: 'Weight', val: last.kg, first: first.kg, unit: 'kg', lower: true },
-    { label: 'Body Fat', val: last.bodyFat, first: first.bodyFat, unit: '%', lower: true },
-    { label: 'Visceral', val: last.visceralFat, first: first.visceralFat, unit: '', lower: true },
-    { label: 'Muscle', val: last.muscle, first: first.muscle, unit: '%' },
-    { label: 'Water', val: last.water, first: first.water, unit: '%' },
+  // Core 3 metrics — what matters at a glance
+  const coreStats = [
+    { key: 'kg' as MetricKey, label: 'Greutate', unit: 'kg', icon: '⚖️', lower: false },
+    { key: 'bodyFat' as MetricKey, label: 'Body Fat', unit: '%', icon: '🔥', lower: true },
+    { key: 'talie' as MetricKey, label: 'Talie', unit: 'cm', icon: '📏', lower: true },
   ];
 
-  const measurements = [
-    { label: 'Biceps', key: 'biceps' as MetricKey },
-    { label: 'Spate', key: 'spate' as MetricKey },
-    { label: 'Piept', key: 'piept' as MetricKey },
-    { label: 'Talie', key: 'talie' as MetricKey },
-    { label: 'Fesieri', key: 'fesieri' as MetricKey },
+  // Optional metrics — shown only in "Detalii"
+  const optionalStats: { key: MetricKey; label: string; unit: string; lower?: boolean }[] = [
+    { key: 'muscle', label: 'Muscle', unit: '%' },
+    { key: 'water', label: 'Water', unit: '%' },
+    { key: 'visceralFat', label: 'Visceral', unit: '', lower: true },
+    { key: 'biceps', label: 'Biceps', unit: 'cm' },
+    { key: 'spate', label: 'Spate', unit: 'cm' },
+    { key: 'piept', label: 'Piept', unit: 'cm' },
+    { key: 'fesieri', label: 'Fesieri', unit: 'cm' },
   ];
 
   return (
     <div className="space-y-5">
-      {/* ═══ HERO TRADING CARD ═══ */}
+      {/* ═══ HERO CARD — name, adjective, streak, likes ═══ */}
       <div className="glass rounded-[var(--r-lg)] p-6 relative overflow-hidden anim-fade glow-blue">
         <div className="accent-strip" style={{ background: color, height: 4 }} />
         <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full opacity-[0.05]" style={{ background: color }} />
         <div className="flex items-start gap-5">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white float"
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white float shrink-0"
             style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}>{p.name[0]}</div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="font-black text-2xl tracking-tight text-white">{p.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
-              <span className="tier-badge text-[10px]" style={{ background: `${tier.color}18`, color: tier.color }}>
-                {tier.icon} {tier.name}
-              </span>
               <span className="chip text-[10px]" style={{ background: `${color}20`, color }}>{adj}</span>
               <span className="chip bg-white/5 text-slate-400 text-[10px]">{p.gender === 'F' ? '♀ Female' : '♂ Male'}</span>
-              <span className="chip bg-white/5 text-slate-400 text-[10px]">{p.entries.length} measurements</span>
-              {months > 0 && <span className="chip bg-white/5 text-slate-400 text-[10px]">{months} months</span>}
-              {bfRank > 0 && <span className="chip text-[10px]" style={{ background: 'rgba(0,255,136,0.1)', color: 'var(--neon-green)' }}>#{bfRank} in Squad</span>}
-              {streak.current > 0 && (
-                <span className="streak-badge text-[10px]">🔥 {streak.current} month streak</span>
-              )}
+              <span className="chip bg-white/5 text-slate-400 text-[10px]">{p.entries.length} check-in-uri</span>
+              {months > 0 && <span className="chip bg-white/5 text-slate-400 text-[10px]">{months} luni</span>}
+              {streak.current > 0 && <span className="streak-badge text-[10px]">🔥 {streak.current} luni streak</span>}
               {likeCount > 0 && (
                 <span className="chip text-[10px]" style={{ background: 'rgba(236,72,153,0.1)', color: '#ec4899' }}>
                   <Heart className="w-3 h-3 inline" fill="currentColor" /> {likeCount} {likeCount === 1 ? 'like' : 'likes'}
@@ -134,331 +121,259 @@ export default function MyProfilePage({ person: p, people, onSelect, likes }: Pr
         </div>
       </div>
 
-      {/* ═══ XP PROGRESS ═══ */}
-      <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d1 relative overflow-hidden">
-        <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-[0.04]" style={{ background: tier.color }} />
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{tier.icon}</span>
-            <div>
-              <div className="text-xs font-black uppercase tracking-widest" style={{ color: tier.color }}>{tier.name}</div>
-              <div className="font-mono text-2xl font-black text-white">{xp.total.toLocaleString()} <span className="text-sm text-slate-500">XP</span></div>
-            </div>
-          </div>
-          {nextTier && (
-            <div className="text-right">
-              <div className="text-[9px] text-slate-500 font-bold uppercase">Next: {nextTier.icon} {nextTier.name}</div>
-              <div className="font-mono text-xs text-slate-400">{(nextTier.minXP - xp.total).toLocaleString()} XP to go</div>
-            </div>
-          )}
-          {!nextTier && (
-            <div className="text-right">
-              <div className="text-[10px] font-black uppercase" style={{ color: tier.color }}>MAX LEVEL</div>
-            </div>
-          )}
-        </div>
-
-        {/* XP progress bar */}
-        <div className="xp-bar mb-4" style={{ height: 10 }}>
-          <div className="xp-bar-fill" style={{
-            width: `${progress * 100}%`,
-            background: `linear-gradient(90deg, ${tier.color}, ${tier.color}88)`,
-            boxShadow: `0 0 12px ${tier.glow}`,
-          }} />
-        </div>
-
-        {/* XP Breakdown */}
-        <div className="xp-grid">
-          {[
-            { label: 'Check-ins', value: xp.checkIns, icon: '📋' },
-            { label: 'Completeness', value: xp.completeness, icon: '📊' },
-            { label: 'Streak Bonus', value: xp.streakBonus, icon: '🔥' },
-            { label: 'Welcome XP', value: xp.firstEntry, icon: '🎉' },
-            { label: 'Journey', value: xp.journeyBonus, icon: '🗓️' },
-            { label: 'Improvement', value: xp.improvement, icon: '💪' },
-          ].map(item => (
-            <div key={item.label} className="rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{item.icon} {item.label}</div>
-              <div className="font-mono text-sm font-black text-white mt-0.5">+{item.value.toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Streak info */}
-        {(streak.current > 0 || streak.longest > 0) && (
-          <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-            {streak.current > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="streak-badge text-sm">🔥 {streak.current}</span>
-                <span className="text-[10px] text-slate-500 font-bold">current streak</span>
-              </div>
-            )}
-            {streak.longest > streak.current && (
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold text-slate-400">Best: {streak.longest} months</span>
-              </div>
-            )}
-          </div>
-        )}
+      {/* ═══ CORE 3 STATS — Weight, BF%, Waist ═══ */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {coreStats.map((m, i) => (
+          <StatCard key={m.key} person={p} metricKey={m.key} label={m.label} unit={m.unit} icon={m.icon} lower={m.lower} color={color} index={i} />
+        ))}
       </div>
 
-      {/* ═══ KEY STATS ═══ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {keyStats.map((m, i) => {
-          const d = delta(m.val, m.first);
-          const good = d != null ? (m.lower ? d < 0 : d > 0) : null;
-          return (
-            <div key={m.label} className={`glass rounded-[var(--r)] p-4 trading-card anim-fade d${i+1}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{m.label}</span>
-                {d != null && (
-                  <span className={`chip text-[10px] ${good ? 'bg-[rgba(0,255,136,0.1)] text-[var(--neon-green)]' : 'bg-[rgba(255,59,59,0.1)] text-[var(--neon-red)]'}`}>
-                    {d > 0 ? '+' : ''}{d.toFixed(1)}{m.unit}
-                  </span>
-                )}
-              </div>
-              <div className="font-mono text-2xl font-black" style={{ color: d != null ? (good ? 'var(--neon-green)' : 'var(--neon-red)') : 'white' }}>
-                {fmt(m.val, 1)}<span className="text-sm font-normal text-slate-500 ml-1">{m.unit}</span>
-              </div>
-              {m.first != null && m.val != null && (
-                <div className="mt-2">
-                  <div className="flex justify-between text-[9px] font-mono text-slate-600 mb-1">
-                    <span>Start: {fmt(m.first)}</span><span>Now: {fmt(m.val)}</span>
-                  </div>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{
-                      width: `${Math.min(100, Math.abs(d!) * 4 + 10)}%`,
-                      background: good ? 'var(--neon-green)' : 'var(--neon-red)',
-                    }} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {/* ═══ PROGRESS CHART — Weight + BF% overlay ═══ */}
+      <ProgressChart person={p} color={color} />
 
-      {/* ═══ CHARTS ═══ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MiniChart entries={p.entries} metricKey="kg" label="Weight" unit="kg" color={color} />
-        <MiniChart entries={p.entries} metricKey="bodyFat" label="Body Fat %" unit="%" color="#ff3b3b" />
-      </div>
-
-      {/* ═══ BODY COMPOSITION ═══ */}
-      {last.bodyFat != null && last.kg != null && (
-        <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d4">
-          <h3 className="font-black text-sm mb-4">🧬 Body Composition</h3>
-
-          {/* Full body composition = 100% */}
-          {(() => {
-            const bf = last.bodyFat!;
-            const mus = last.muscle;
-            const wat = last.water;
-            const totalKg = last.kg!;
-
-            // 100% model: Fat + Muscle + Bone/Organs = 100%
-            const musPct = mus ?? 0;
-            const bonePct = Math.max(0, 100 - bf - musPct);
-            const fatKg = (bf / 100) * totalKg;
-            const musKg = mus != null ? (musPct / 100) * totalKg : null;
-            const boneKg = mus != null ? (bonePct / 100) * totalKg : null;
-
-            return (
-              <>
-                {/* Primary bar: 100% composition */}
-                <div className="mb-1">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Full Body = 100%</div>
-                  <div className="flex h-10 rounded-xl overflow-hidden gap-0.5">
-                    <div className="flex items-center justify-center font-mono text-[10px] font-bold text-white"
-                      style={{ width: `${bf}%`, minWidth: bf > 8 ? 'auto' : 0, background: 'linear-gradient(135deg, #ff3b3b, #ff6b6b)' }}>
-                      {bf > 8 ? `${bf.toFixed(1)}%` : ''}
-                    </div>
-                    {mus != null && (
-                      <div className="flex items-center justify-center font-mono text-[10px] font-bold"
-                        style={{ width: `${musPct}%`, background: 'linear-gradient(135deg, #22d3ee, #06b6d4)', color: '#0f172a' }}>
-                        {musPct > 12 ? `${musPct.toFixed(1)}%` : ''}
-                      </div>
-                    )}
-                    {mus != null && (
-                      <div className="flex items-center justify-center font-mono text-[10px] font-bold text-slate-300"
-                        style={{ width: `${bonePct}%`, background: 'rgba(255,255,255,0.08)' }}>
-                        {bonePct > 5 ? `${bonePct.toFixed(1)}%` : ''}
-                      </div>
-                    )}
-                    {mus == null && (
-                      <div className="flex items-center justify-center font-mono text-[10px] font-bold"
-                        style={{ flex: 1, background: 'linear-gradient(135deg, #00cc6a, #00ff88)', color: '#0f172a' }}>
-                        {(100 - bf).toFixed(1)}%
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-4 mt-2">
-                    <Leg c="#ff3b3b" l={`Fat ${bf.toFixed(1)}%`} />
-                    {mus != null ? (
-                      <>
-                        <Leg c="#22d3ee" l={`Muscle ${musPct.toFixed(1)}%`} />
-                        <Leg c="rgba(255,255,255,0.2)" l={`Bone/Organs ${bonePct.toFixed(1)}%`} />
-                      </>
-                    ) : (
-                      <Leg c="#00ff88" l={`Lean ${(100 - bf).toFixed(1)}%`} />
-                    )}
-                  </div>
-                </div>
-
-                {/* Weight cards */}
-                <div className={`grid ${mus != null ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mt-4 mb-4`}>
-                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,59,59,0.08)' }}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#ff3b3b' }}>Fat</div>
-                    <div className="font-mono text-lg font-black text-white">{fatKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                  </div>
-                  {musKg != null ? (
-                    <>
-                      <div className="rounded-xl p-3" style={{ background: 'rgba(34,211,238,0.06)' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#22d3ee' }}>Muscle</div>
-                        <div className="font-mono text-lg font-black text-white">{musKg.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                      </div>
-                      <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-400">Bone/Organs</div>
-                        <div className="font-mono text-lg font-black text-white">{boneKg!.toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,0.06)' }}>
-                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#00ff88' }}>Lean</div>
-                      <div className="font-mono text-lg font-black text-white">{(totalKg - fatKg).toFixed(1)} <span className="text-xs text-slate-500">kg</span></div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Water — shown separately as it's distributed across all tissues */}
-                {wat != null && (
-                  <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: '#3b82f6' }}>Total Body Water</div>
-                        <div className="text-[9px] text-slate-500">Distributed across muscle, organs & fat</div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono text-xl font-black text-white">{wat.toFixed(1)}<span className="text-sm text-slate-500">%</span></span>
-                        <div className="font-mono text-[10px] text-slate-400">{((wat / 100) * totalKg).toFixed(1)} kg</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Info */}
-                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                    💡 1 kg of fat ≈ 1.1L volume vs 1 kg of muscle ≈ 0.9L — that's why
-                    body composition matters more than scale weight. Water is distributed
-                    across all tissues (~75% of muscle is water).
-                  </div>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* ═══ BODY SILHOUETTE ═══ */}
-      <BodySilhouette entries={p.entries} gender={p.gender} />
-
-      {/* ═══ MEASUREMENTS ═══ */}
-      {measurements.some(m => last[m.key] != null) && (
-        <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d5">
-          <h3 className="font-black text-sm mb-4">📐 Measurements (cm)</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            {measurements.map(m => {
-              const val = last[m.key] as number | null;
-              const fv = first[m.key] as number | null;
-              const d = delta(val, fv);
-              if (val == null) return null;
-              return (
-                <div key={m.key} className="text-center">
-                  <div className="font-mono text-xl font-black">{fmt(val, 1)}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5 font-bold">{m.label}</div>
-                  {d != null && (
-                    <span className="font-mono text-[10px] font-bold" style={{ color: deltaColor(d, m.key === 'talie') }}>
-                      {d > 0 ? '+' : ''}{d.toFixed(1)} cm
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ LOG TABLE ═══ */}
-      <div className="glass rounded-[var(--r-lg)] p-4 anim-fade d6">
-        <h3 className="font-black text-sm mb-3">📋 Measurement History</h3>
+      {/* ═══ ISTORIC — full log table ═══ */}
+      <div className="glass rounded-[var(--r-lg)] p-4 anim-fade d4">
+        <h3 className="font-black text-sm mb-3 flex items-center gap-2">
+          📋 Istoric complet
+          <span className="text-[10px] font-bold text-slate-500">({p.entries.length})</span>
+        </h3>
         <div className="overflow-x-auto">
           <table className="lb-table">
             <thead>
-              <tr><th>Date</th><th>Kg</th><th>BF%</th><th>Visc.</th><th>Muscle</th><th>Water</th></tr>
+              <tr>
+                <th>Data</th>
+                <th>Kg</th>
+                <th>BF%</th>
+                <th>Talie</th>
+                <th>Muscle</th>
+                <th>Water</th>
+              </tr>
             </thead>
             <tbody>
-              {[...p.entries].reverse().map((e, i) => (
-                <tr key={i}>
-                  <td className="text-xs font-medium" style={{ fontFamily: 'Montserrat', color: 'var(--text2)' }}>
-                    {new Date(e.date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: '2-digit' })}
-                  </td>
-                  <td>{fmt(e.kg)}</td><td>{fmt(e.bodyFat)}</td>
-                  <td>{fmt(e.visceralFat, 0)}</td><td>{fmt(e.muscle)}</td><td>{fmt(e.water)}</td>
-                </tr>
-              ))}
+              {[...p.entries].reverse().map((e, i) => {
+                // Calculate delta vs previous entry (the one before in chronological order)
+                const chronoIdx = p.entries.length - 1 - i;
+                const prevEntry = chronoIdx > 0 ? p.entries[chronoIdx - 1] : null;
+                const dKg = prevEntry ? delta(e.kg, prevEntry.kg) : null;
+                const dBf = prevEntry ? delta(e.bodyFat, prevEntry.bodyFat) : null;
+                const dTalie = prevEntry ? delta(e.talie, prevEntry.talie) : null;
+                return (
+                  <tr key={i}>
+                    <td className="text-xs font-medium" style={{ fontFamily: 'Montserrat', color: 'var(--text2)' }}>
+                      {new Date(e.date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    </td>
+                    <td>
+                      {fmt(e.kg)}
+                      {dKg != null && dKg !== 0 && (
+                        <span className="ml-1 text-[9px] font-mono" style={{ color: deltaColor(dKg, false) }}>
+                          {dKg > 0 ? '+' : ''}{dKg.toFixed(1)}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {fmt(e.bodyFat)}
+                      {dBf != null && dBf !== 0 && (
+                        <span className="ml-1 text-[9px] font-mono" style={{ color: deltaColor(dBf, true) }}>
+                          {dBf > 0 ? '+' : ''}{dBf.toFixed(1)}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {fmt(e.talie)}
+                      {dTalie != null && dTalie !== 0 && (
+                        <span className="ml-1 text-[9px] font-mono" style={{ color: deltaColor(dTalie, true) }}>
+                          {dTalie > 0 ? '+' : ''}{dTalie.toFixed(1)}
+                        </span>
+                      )}
+                    </td>
+                    <td>{fmt(e.muscle)}</td>
+                    <td>{fmt(e.water)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ═══ DETALII — collapsible extra metrics ═══ */}
+      <div className="glass rounded-[var(--r-lg)] anim-fade d5">
+        <button
+          onClick={() => setShowDetails(v => !v)}
+          className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors rounded-[var(--r-lg)]">
+          <div>
+            <h3 className="font-black text-sm">🔬 Detalii suplimentare</h3>
+            <p className="text-[10px] text-slate-500 mt-0.5">Muscle, water, visceral, circumferințe</p>
+          </div>
+          {showDetails ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {showDetails && (
+          <div className="px-4 pb-4 anim-fade">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {optionalStats.map(m => {
+                const val = last[m.key] as number | null;
+                const firstVal = first[m.key] as number | null;
+                const prevVal = prev ? (prev[m.key] as number | null) : null;
+                if (val == null) return null;
+                const dStart = delta(val, firstVal);
+                const dRecent = delta(val, prevVal);
+                return (
+                  <div key={m.key} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">{m.label}</div>
+                    <div className="font-mono text-lg font-black text-white">
+                      {fmt(val, 1)}<span className="text-[10px] text-slate-500 ml-1">{m.unit}</span>
+                    </div>
+                    {dRecent != null && dRecent !== 0 && (
+                      <div className="font-mono text-[9px] font-bold mt-1" style={{ color: deltaColor(dRecent, m.lower) }}>
+                        ultim: {dRecent > 0 ? '+' : ''}{dRecent.toFixed(1)}
+                      </div>
+                    )}
+                    {dStart != null && dStart !== 0 && (
+                      <div className="font-mono text-[9px] text-slate-500 mt-0.5">
+                        start: {dStart > 0 ? '+' : ''}{dStart.toFixed(1)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function MiniChart({ entries, metricKey, label, unit, color }: {
-  entries: any[]; metricKey: MetricKey; label: string; unit: string; color: string;
+/** Core stat card — big value, delta vs previous check-in, sparkline */
+function StatCard({ person, metricKey, label, unit, icon, lower, color, index }: {
+  person: Person; metricKey: MetricKey; label: string; unit: string; icon: string; lower?: boolean; color: string; index: number;
 }) {
-  const raw = entries.filter(e => e[metricKey] != null).map(e => ({
-    date: e.date as string,
-    val: e[metricKey] as number,
-  }));
+  const val = person.latest[metricKey] as number | null;
+  const prev = person.previous ? (person.previous[metricKey] as number | null) : null;
+  const first = person.first[metricKey] as number | null;
+  const dRecent = delta(val, prev);
+  const dStart = delta(val, first);
+  const goodRecent = dRecent != null ? (lower ? dRecent < 0 : dRecent > 0) : null;
+
+  // Sparkline data
+  const spark = useMemo(() => {
+    return person.entries
+      .map(e => e[metricKey] as number | null)
+      .filter((v): v is number => v != null);
+  }, [person, metricKey]);
+
+  return (
+    <div className={`glass rounded-[var(--r-lg)] p-4 trading-card relative overflow-hidden anim-fade d${index + 1}`}>
+      <div className="accent-strip" style={{ background: color, height: 2 }} />
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{icon} {label}</span>
+        {dRecent != null && dRecent !== 0 && (
+          <span className={`chip text-[10px] ${goodRecent ? 'bg-[rgba(0,255,136,0.1)] text-[var(--neon-green)]' : 'bg-[rgba(255,59,59,0.1)] text-[var(--neon-red)]'}`}>
+            {dRecent > 0 ? '+' : ''}{dRecent.toFixed(1)}{unit}
+          </span>
+        )}
+      </div>
+
+      <div className="font-mono text-3xl font-black text-white">
+        {fmt(val, 1)}<span className="text-sm font-normal text-slate-500 ml-1">{unit}</span>
+      </div>
+
+      {dStart != null && dStart !== 0 && first != null && (
+        <div className="text-[9px] font-mono text-slate-500 mt-1">
+          de la start: <span style={{ color: deltaColor(dStart, lower) }} className="font-bold">{dStart > 0 ? '+' : ''}{dStart.toFixed(1)}{unit}</span>
+        </div>
+      )}
+
+      {/* Sparkline */}
+      {spark.length >= 2 && (
+        <div className="mt-3 h-8 flex items-end gap-[2px]">
+          {(() => {
+            const min = Math.min(...spark);
+            const max = Math.max(...spark);
+            const range = max - min || 1;
+            return spark.map((v, i) => {
+              const h = 8 + ((v - min) / range) * 24;
+              const isLast = i === spark.length - 1;
+              return (
+                <div key={i} className="flex-1 rounded-t-sm transition-all"
+                  style={{
+                    height: `${h}px`,
+                    background: isLast ? color : `${color}66`,
+                    minWidth: 3,
+                  }} />
+              );
+            });
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dual-line trend chart — weight + body fat over time */
+function ProgressChart({ person, color }: { person: Person; color: string }) {
+  const [metric, setMetric] = useState<MetricKey>('kg');
+  const meta: Record<string, { label: string; unit: string; color: string }> = {
+    kg: { label: 'Greutate', unit: 'kg', color },
+    bodyFat: { label: 'Body Fat %', unit: '%', color: '#ff3b3b' },
+    talie: { label: 'Talie', unit: 'cm', color: '#22d3ee' },
+  };
+
+  const raw = person.entries
+    .filter(e => e[metric] != null)
+    .map(e => ({ date: e.date as string, val: e[metric] as number }));
   const data = useMemo(() => densifyTimeSeries(raw), [JSON.stringify(raw)]);
   const mt = useMemo(() => monthTicks(data), [data]);
-  if (data.length < 2) return null;
+  const m = meta[metric];
+
+  if (data.length < 2) {
+    return (
+      <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d3">
+        <h3 className="font-black text-sm mb-2">📈 Progres în timp</h3>
+        <p className="text-[11px] text-slate-500">Ai nevoie de minim 2 check-in-uri ca să vezi trendul.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d3">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-black text-sm">{label}</h3>
-        <span className="chip bg-white/5 text-slate-400 font-mono text-[10px]">{unit}</span>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-black text-sm">📈 Progres — {m.label}</h3>
+        <div className="flex gap-1">
+          {(['kg', 'bodyFat', 'talie'] as MetricKey[]).map(k => (
+            <button key={k}
+              onClick={() => setMetric(k)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${metric === k ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              style={metric === k ? { background: `${meta[k].color}20`, color: meta[k].color } : { background: 'rgba(255,255,255,0.03)' }}>
+              {meta[k].label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="chart-fluid" style={{ height: 180, ['--chart-accent' as any]: `${color}66` }}>
+      <div className="chart-fluid" style={{ height: 200, ['--chart-accent' as any]: `${m.color}66` }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={data}>
             <defs>
-              <linearGradient id={`g-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.3}>
-                  <animate attributeName="stop-opacity" values="0.3;0.12;0.3" dur="4s" repeatCount="indefinite" />
-                </stop>
-                <stop offset="50%" stopColor={color} stopOpacity={0.08}>
-                  <animate attributeName="stop-opacity" values="0.08;0.2;0.08" dur="4s" begin="1s" repeatCount="indefinite" />
-                </stop>
-                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              <linearGradient id={`g-prog-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={m.color} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={m.color} stopOpacity={0} />
               </linearGradient>
-              <filter id={`glow-${metricKey}`}>
+              <filter id={`glow-prog-${metric}`}>
                 <feGaussianBlur stdDeviation="3" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
             </defs>
             <Tooltip cursor={<CrosshairCursor />}
-              content={<FloatingTooltip unit={unit} color={color} />}
+              content={<FloatingTooltip unit={m.unit} color={m.color} />}
               isAnimationActive={false} />
-            <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2.5} fill={`url(#g-${metricKey})`}
+            <Area type="monotone" dataKey="val" stroke={m.color} strokeWidth={2.5} fill={`url(#g-prog-${metric})`}
               dot={(props: any) => {
                 const pt = data[props.index];
                 if (!pt?.isReal) return <circle key={props.index} r={0} />;
-                return <circle key={props.index} cx={props.cx} cy={props.cy} r={4} fill={color} stroke="#0f172a" strokeWidth={2} />;
+                return <circle key={props.index} cx={props.cx} cy={props.cy} r={4} fill={m.color} stroke="#0f172a" strokeWidth={2} />;
               }}
-              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: `url(#glow-${metricKey})` }} />
+              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, filter: `url(#glow-prog-${metric})` }} />
             <XAxis dataKey="date" axisLine={false} tickLine={false}
               tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
               ticks={mt.ticks} tickFormatter={mt.fmt} />
@@ -467,28 +382,9 @@ function MiniChart({ entries, metricKey, label, unit, color }: {
       </div>
       {data.length >= 2 && <TFBar
         firstIso={data[0].isoDate} lastIso={data[data.length - 1].isoDate}
-        days={Math.round((new Date(data[data.length-1].isoDate).getTime() - new Date(data[0].isoDate).getTime()) / 86400000)}
-        realCount={data.filter(d => d.isReal).length} color={color}
+        days={Math.round((new Date(data[data.length - 1].isoDate).getTime() - new Date(data[0].isoDate).getTime()) / 86400000)}
+        realCount={data.filter(d => d.isReal).length} color={m.color}
       />}
     </div>
   );
 }
-
-function Seg({ val, label, bg, dark }: { val: number; label: string; bg: string; dark?: boolean }) {
-  return (
-    <div className="flex items-center justify-center font-mono text-[10px] font-bold"
-      style={{ width: `${val}%`, background: bg, color: dark ? '#0f172a' : '#fff' }}>
-      {val > 10 ? `${val.toFixed(1)}%` : ''}
-    </div>
-  );
-}
-
-function Leg({ c, l }: { c: string; l: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
-      <span className="text-xs font-mono text-slate-400">{l}</span>
-    </div>
-  );
-}
-

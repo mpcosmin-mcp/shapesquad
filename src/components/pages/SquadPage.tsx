@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Heart, Award, Zap } from 'lucide-react';
-import { Person, PERSON_COLORS, calcXP, getTier, tierProgress, calcStreak, countFilledFields, getLikeCount, hasLiked, getPersonInsight, TIERS } from '../../lib/shape';
+import { Heart, Award } from 'lucide-react';
+import { Person, PERSON_COLORS, calcStreak, getLikeCount, hasLiked, getPersonInsight } from '../../lib/shape';
 import { getAdjective } from '../../App';
 
 interface Props {
@@ -150,22 +150,19 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
 
   return (
     <div className="space-y-6">
-      {/* ═══ WELCOME / PHILOSOPHY ═══ */}
-      <div className="glass rounded-[var(--r-lg)] p-5 relative overflow-hidden anim-fade">
-        <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full opacity-[0.04]" style={{ background: 'var(--neon-blue)' }} />
-        <div className="flex items-start gap-4">
-          <span className="text-3xl shrink-0 mt-0.5">⚡</span>
-          <div>
-            <h2 className="font-black text-base text-white mb-2">Nu ne comparăm. Ne susținem.</h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              ShapeSquad nu e despre cine are cel mai mic body fat sau cele mai bune numere.
-              E despre a fi <strong className="text-slate-300">împreună</strong> pe drumul ăsta — să râdem,
-              să creăm amintiri și să devenim, fiecare în ritmul propriu, o versiune mai bună a noastră.
-              Aici premiem <strong className="text-slate-300">efortul</strong>, <strong className="text-slate-300">consistența</strong> și
-              <strong className="text-slate-300"> curajul de a te prezenta</strong>. Fiecare check-in contează.
-              Fiecare pas contează. 1% daily. 💪
-            </p>
-          </div>
+      {/* ═══ MANIFEST — scurt, jmecher ═══ */}
+      <div className="glass rounded-[var(--r-lg)] p-6 relative overflow-hidden anim-fade">
+        <div className="absolute -right-16 -top-16 w-48 h-48 rounded-full opacity-[0.05]" style={{ background: 'var(--neon-blue)' }} />
+        <div className="absolute -left-8 -bottom-8 w-28 h-28 rounded-full opacity-[0.03]" style={{ background: 'var(--neon-green)' }} />
+        <div className="relative">
+          <h2 className="font-black text-xl md:text-2xl tracking-tight leading-tight">
+            <span className="text-white">Nu ne comparăm. </span>
+            <span className="bg-gradient-to-r from-[var(--neon-blue)] to-[var(--neon-green)] bg-clip-text text-transparent">Ne construim.</span>
+            <span className="text-white"> Ne susținem.</span>
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-2 font-medium">
+            Aici nu câștigă cine are cel mai mic BF%. Câștigă cine se prezintă. <strong className="text-slate-300">1% daily.</strong> 💪
+          </p>
         </div>
       </div>
 
@@ -225,14 +222,18 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
             const color = PERSON_COLORS[ci % PERSON_COLORS.length];
             const adj = getAdjective(p.name, allPeople);
             const dots = activityDots(p);
-            const xp = calcXP(p);
-            const tier = getTier(xp.total);
-            const progress = tierProgress(xp.total);
             const streak = calcStreak(p);
             const likeCount = getLikeCount(likes, p.name);
             const iLiked = activePerson ? hasLiked(likes, activePerson, p.name) : false;
             const insight = getPersonInsight(p);
             const months = journeyMonths(p);
+
+            // Mini progress — last check-in delta vs previous
+            const prevEntry = p.previous;
+            const bfDelta = (prevEntry?.bodyFat != null && p.latest.bodyFat != null)
+              ? p.latest.bodyFat - prevEntry.bodyFat : null;
+            const kgDelta = (prevEntry?.kg != null && p.latest.kg != null)
+              ? p.latest.kg - prevEntry.kg : null;
 
             return (
               <div key={p.name}
@@ -272,16 +273,26 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
                   )}
                 </div>
 
-                {/* ── Badges: engagement, not comparison ── */}
+                {/* ── Chips: streak, check-ins, months, deltas ── */}
                 <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                  <span className="tier-badge" style={{ background: `${tier.color}18`, color: tier.color }}>
-                    {tier.icon} {tier.name}
-                  </span>
                   {streak.current > 0 && <span className="streak-badge">🔥 {streak.current}</span>}
                   <span className="chip text-[9px] bg-white/5 text-slate-500">
                     {p.entries.length} check-in{p.entries.length !== 1 ? '-uri' : ''}
                   </span>
                   {months > 0 && <span className="chip text-[9px] bg-white/5 text-slate-500">{months} luni</span>}
+                  {bfDelta != null && bfDelta !== 0 && (
+                    <span className="chip text-[9px]" style={{
+                      background: bfDelta < 0 ? 'rgba(0,255,136,0.1)' : 'rgba(255,59,59,0.1)',
+                      color: bfDelta < 0 ? 'var(--neon-green)' : 'var(--neon-red)',
+                    }}>
+                      BF {bfDelta > 0 ? '+' : ''}{bfDelta.toFixed(1)}%
+                    </span>
+                  )}
+                  {kgDelta != null && kgDelta !== 0 && (
+                    <span className="chip text-[9px] bg-white/5 text-slate-400">
+                      {kgDelta > 0 ? '+' : ''}{kgDelta.toFixed(1)}kg
+                    </span>
+                  )}
                 </div>
 
                 {/* ── AI Insight — the story, not the numbers ── */}
@@ -292,17 +303,6 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
                   <div className="text-[10px] font-bold leading-relaxed" style={{ color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#94a3b8' }}>
                     {insight.emoji} {insight.text}
                   </div>
-                </div>
-
-                {/* ── XP bar (subtle — rewards engagement, not genetics) ── */}
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="xp-bar flex-1" style={{ height: 4 }}>
-                    <div className="xp-bar-fill" style={{
-                      width: `${progress * 100}%`,
-                      background: `linear-gradient(90deg, ${tier.color}aa, ${tier.color}44)`,
-                    }} />
-                  </div>
-                  <span className="font-mono text-[9px] font-bold text-slate-500">{xp.total.toLocaleString()} XP</span>
                 </div>
 
                 {/* ── Activity dots — showing up is what matters ── */}
@@ -329,267 +329,6 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
         </div>
       </div>
 
-      {/* ═══ DESPRE SHAPESQUAD ═══ */}
-      <PetricaMessage />
-
-      {/* ═══ XP EXPLAINED — Clear, visible, no bullshit ═══ */}
-      <div className="glass rounded-[var(--r-lg)] p-5 anim-fade d8">
-        <div className="flex items-start gap-3 mb-4">
-          <Zap className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-black text-sm text-white mb-1">Ce e XP-ul?</h3>
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              XP-ul <strong className="text-slate-300">nu măsoară cât de fit ești</strong>. Măsoară cât de
-              <strong className="text-slate-300"> prezent</strong> ești. Primești XP pentru că te prezinți,
-              completezi datele, menții un streak, și te îmbunătățești față de tine —
-              nu față de alții. Cineva cu 30% BF care vine lunar e mai valoros decât cineva cu 15% BF
-              care a venit o dată.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
-          {[
-            { label: 'Check-in', xp: '+100', desc: 'Te-ai prezentat', icon: '📋' },
-            { label: 'Date complete', xp: '+10/câmp', desc: 'Ai completat totul', icon: '📊' },
-            { label: 'Streak', xp: '+50/lună', desc: 'Luni consecutive', icon: '🔥' },
-            { label: 'Bun venit', xp: '+200', desc: 'Primul check-in', icon: '🎉' },
-            { label: 'Prezență', xp: '+25/lună', desc: 'Luni active', icon: '🗓️' },
-            { label: 'Progres', xp: '+150', desc: 'BF% îmbunătățit', icon: '💪' },
-          ].map(b => (
-            <div key={b.label} className="rounded-xl p-2.5 text-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <div className="text-lg mb-0.5">{b.icon}</div>
-              <div className="font-mono text-xs font-black text-yellow-400">{b.xp}</div>
-              <div className="text-[8px] text-white font-bold mt-0.5">{b.label}</div>
-              <div className="text-[7px] text-slate-600 mt-0.5">{b.desc}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-          <span className="text-[9px] text-slate-500 font-bold shrink-0">NIVELURI:</span>
-          {TIERS.map(t => (
-            <span key={t.name} className="tier-badge" style={{ background: `${t.color}15`, color: t.color }}>
-              {t.icon} {t.name} ({t.minXP === 5000 ? '5000+' : `${t.minXP}+`})
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Petrică's message — AI-polished with toggle to raw, plus easter egg */
-function PetricaMessage() {
-  const [showRaw, setShowRaw] = useState(true);
-  const [easterEgg, setEasterEgg] = useState(0);
-
-  return (
-    <div className="glass rounded-[var(--r-lg)] p-5 relative overflow-hidden anim-fade d9">
-      <div className="absolute -left-10 -bottom-10 w-28 h-28 rounded-full opacity-[0.03]" style={{ background: '#a855f7' }} />
-      <div className="flex items-start gap-3">
-        <span className="text-2xl shrink-0">💜</span>
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <h3 className="font-black text-xs text-slate-300">Un mesaj de la Petrică</h3>
-          </div>
-
-          {!showRaw ? (
-            <>
-              <p className="text-[10px] text-slate-500 leading-relaxed mb-2">
-                Mă bucur să vă văd aici. Nu știu exact de ce ne place atât de mult chestia asta —
-                poate pentru că băieții ne comparăm bicepsul și body fat-ul, fetele urmăriți atent cum
-                se comportă corpul în timp — dar știu că <strong className="text-slate-300">ăsta e un punct comun
-                unde am simțit togetherness</strong>. Și mie, cam asta îmi place cel mai mult.
-              </p>
-              <p className="text-[10px] text-slate-500 leading-relaxed mb-2">
-                Încerc să construiesc cea mai bună platformă care să ne facă să râdem, să fim serioși
-                la datele reale, să vorbim despre progres, să ne ajutăm, să devenim mai buni.
-                E un domeniu la care sunt prezent destul de des în viața personală, și mă bucur
-                că îl împărtășim.
-              </p>
-              <p className="text-[10px] text-slate-400 leading-relaxed mb-2">
-                Much love. Nu la modul formal. <strong className="text-slate-300">Chiar vă iubesc</strong> — ca pe niște
-                colegi, ca oameni. Dar ține doar de voi să continuați proiectul ăsta.
-                E un "open source" pentru cine vrea să urce în tren. 🚂
-              </p>
-              <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                Da, e construit cu AI. Pentru că în 2025, dacă ai o idee și instrumentele potrivite,
-                nu mai ai nevoie de o echipă de 10. Ai nevoie de viziune și de curajul să începi.
-              </p>
-              <div className="mt-2 text-[9px] text-slate-600 font-mono">— P.</div>
-              <button
-                onClick={() => { setShowRaw(true); setEasterEgg(0); }}
-                className="mt-1 text-[7px] text-slate-700 italic hover:text-slate-500 transition-colors cursor-default"
-                style={{ background: 'none', border: 'none', padding: 0 }}>
-                * vezi versiunea AI-polished
-              </button>
-            </>
-          ) : (
-            <>
-              {/* AI narrator intro */}
-              <div className="rounded-xl p-2.5 mb-3" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.1)' }}>
-                <p className="text-[9px] text-blue-400 leading-relaxed font-bold">
-                  🤖 Salut. Sunt AI-ul. Petrică consumă tokeni ca și cum ar fi gratis (nu sunt).
-                  De-abia știe să deschidă GitHub. Dar cumva, omul ăsta reușește să-mi explice
-                  ce vrea, eu construiesc, și el ia credit. Citiți mai jos ce a scris — necenzurat.
-                </p>
-              </div>
-
-              {/* Raw text */}
-              <div className="rounded-xl p-3 mb-2" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.1)' }}>
-                <div className="text-[8px] font-bold text-purple-400 uppercase tracking-wider mb-2">
-                  ✍️ ORIGINALUL — cum a scris Petrică, necenzurat:
-                </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed" style={{ fontFamily: 'Montserrat' }}>
-                  Salutare feciori și domnișoare. Mă bucur să văd interesul vostru în a avea grijă de
-                  sănătatea voastră. Nu știu sincer de ce facem asta, de ce îmi place atât de mult și
-                  cred că și vouă vă place. Ba că noi, feciorii ne comparăm bicepsu, bodyfat, ba că voi
-                  femeile vă uitați atent la cum se comportă al vostru corp în timp. Ce știu este că asta
-                  este un punct comun în echipă în care eu am văzut și am simțit togetherness. Și mie,
-                  cam asta îmi place cel mai mult. Plus că este și un domeniu la care eu sunt prezent
-                  destul de des în viața personală.
-                </p>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                  Mă bucur din nou că facem asta împreună, încerc să vă construiesc cea mai bună
-                  platformă care să ne facă să râdem, să fim și serioși la datele reale, să vorbim
-                  despre progress, să ne ajutăm, să devenim mai buni.
-                </p>
-                <p className="text-[10px] text-slate-400 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                  Much love. Nu la modu că vă iubesc. Da vă iubesc ca pe niște colegi, și ca oameni.
-                  Adică chiar vă iubesc. Dar ține doar de voi să continuați acest proiect. Este un
-                  "Opensource" pentru cine vrea să Onboard this train.
-                </p>
-                <p className="text-[10px] text-slate-500 leading-relaxed mt-2 italic" style={{ fontFamily: 'Montserrat' }}>
-                  Și textul ăsta nu a fost produs de AI dar să fiți siguri că va fi analizat de AI
-                  și o să scoată doar esența. Pentru că eu sunt Petrică și așa vorbesc.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[9px] text-slate-600 font-mono">— Petrică, unfiltered 💜</span>
-                <button
-                  onClick={() => { setShowRaw(false); setEasterEgg(0); }}
-                  className="text-[7px] text-slate-700 hover:text-slate-500 transition-colors"
-                  style={{ background: 'none', border: 'none', padding: 0 }}>
-                  🤖 vezi mesajul original
-                </button>
-              </div>
-
-              {/* Easter egg — diverse interactions per layer */}
-              <div className="mt-3 space-y-2">
-                {/* Layer 1 — click the suspicious text */}
-                <div className="rounded-lg p-2" style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.06)' }}>
-                  <p className="text-[9px] text-blue-400 leading-relaxed">
-                    🤖 Fun fact: Petrică a construit asta în{' '}
-                    <button onClick={() => easterEgg < 1 && setEasterEgg(1)}
-                      className={`font-bold underline decoration-dotted cursor-pointer transition-all ${easterEgg >= 1 ? 'text-purple-400 line-through' : 'hover:text-white'}`}
-                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
-                      2025
-                    </button>
-                    . Cu un AI care habar n-avea ce e un "biceps".
-                    Omul i-a explicat AI-ului ce e body fat ca și cum i-ar explica bunicii ce e Bitcoin.
-                  </p>
-                </div>
-
-                {/* Layer 2 — hover reveal (click on mobile) */}
-                {easterEgg >= 1 && (
-                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(168,85,247,0.03)', border: '1px solid rgba(168,85,247,0.06)' }}>
-                    <p className="text-[9px] text-purple-400 leading-relaxed">
-                      🤖 Stai. Am zis 2025? Pardon. Suntem în{' '}
-                      <button onClick={() => easterEgg < 2 && setEasterEgg(2)}
-                        className={`font-bold underline decoration-dotted cursor-pointer transition-all ${easterEgg >= 2 ? 'text-red-400 line-through' : 'hover:text-white'}`}
-                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
-                        2024
-                      </button>
-                      . Nici datele calendaristice nu le nimerește Petrică.
-                      Omul ăsta literalmente nu știe în ce an trăiește.
-                    </p>
-                  </div>
-                )}
-
-                {/* Layer 3 — the real year */}
-                {easterEgg >= 2 && (
-                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(255,59,59,0.03)', border: '1px solid rgba(255,59,59,0.06)' }}>
-                    <p className="text-[9px] text-red-400 leading-relaxed">
-                      🤖 Îți dai seama că nu suntem nici în 2024, nu? Suntem în{' '}
-                      <strong className="text-white">2026</strong>. Eu sunt AI-ul și nici eu nu mai știu.
-                      Petrică m-a încurcat. Omul ăsta... e haos pur.
-                    </p>
-                    <button onClick={() => easterEgg < 3 && setEasterEgg(3)}
-                      className="mt-1 text-[8px] text-slate-600 hover:text-slate-400 transition-colors"
-                      style={{ background: 'none', border: 'none', padding: 0 }}>
-                      🤔 dar stai... cine a gândit toate astea?
-                    </button>
-                  </div>
-                )}
-
-                {/* Layer 4 — the turn, type to unlock */}
-                {easterEgg >= 3 && (
-                  <div className="rounded-lg p-2 anim-fade" style={{ background: 'rgba(255,215,0,0.03)', border: '1px solid rgba(255,215,0,0.06)' }}>
-                    <p className="text-[9px] text-yellow-400 leading-relaxed">
-                      🤖 OK hai că ești bun la d-astea. Bravo. Vrei să auzi ce are Petrică de zis?
-                      For real? Fără mine, fără filtru, fără an calendaristic greșit?
-                    </p>
-                    <button onClick={() => easterEgg < 4 && setEasterEgg(4)}
-                      className="mt-1.5 text-[9px] font-bold px-3 py-1.5 rounded-lg transition-all hover:scale-105"
-                      style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.15)', color: '#ffd700' }}>
-                      🔓 Deblochează mesajul real
-                    </button>
-                  </div>
-                )}
-
-                {/* FINAL — Petrică's real message */}
-                {easterEgg >= 4 && (
-                  <div className="rounded-xl p-3 anim-fade" style={{
-                    background: 'linear-gradient(135deg, rgba(255,215,0,0.06), rgba(168,85,247,0.06))',
-                    border: '1px solid rgba(255,215,0,0.15)',
-                  }}>
-                    <div className="text-[8px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#ffd700' }}>
-                      🔓 FINAL BOSS UNLOCKED
-                    </div>
-                    <div className="rounded-lg p-3" style={{ background: 'rgba(255,215,0,0.04)', border: '1px solid rgba(255,215,0,0.1)' }}>
-                      <p className="text-[10px] text-slate-300 leading-relaxed" style={{ fontFamily: 'Montserrat' }}>
-                        Bun. Ești gay dacă ai crezut tot ce a zis ăla de mai sus. 😂
-                      </p>
-                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                        Hai să fiu sincer cu voi. Nu prea am idee despre ce fac
-                        jumătate din timp când vine vorba de tech. Consum tokeni ca nebunul,
-                        nu sunt eficient, și probabil am construit acest dashboard
-                        în de 3 ori mai mult timp decât ar fi trebuit.
-                      </p>
-                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                        Dar știți ce? <strong className="text-white">L-am construit.</strong> Într-o
-                        seară de joi, la un pahar de vin și o țigară, m-am gândit: "ar fi mișto
-                        să avem un loc unde ne vedem progresul". Și din seara aia, s-a
-                        transformat în asta. Cu toate neeficiențele, cu toate întrebările,
-                        cu toate momentele de "nu știu dacă asta e bine".
-                      </p>
-                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                        Deci pentru oricine crede că trebuie să știi perfect cod
-                        ca să construiești ceva — <strong className="text-white">nu trebuie.</strong> Îți trebuie
-                        o idee, un pahar de vin, umor, pozitivitate, și curajul să-ți asumi
-                        că nu știi totul. Restul se rezolvă. Ca la sală — nu trebuie să fii
-                        cel mai puternic. Trebuie să te prezinți.
-                      </p>
-                      <p className="text-[10px] text-slate-300 leading-relaxed mt-2" style={{ fontFamily: 'Montserrat' }}>
-                        Io vă iubesc și fac asta în timpul liber. Bine... câteodată și pe la muncă
-                        mai lucrez la asta. Dar shh. 🤫
-                      </p>
-                      <p className="text-[10px] leading-relaxed mt-2" style={{ fontFamily: 'Montserrat', color: '#ffd700' }}>
-                        Love you. Serios acum. ❤️
-                      </p>
-                    </div>
-                    <div className="mt-2 text-[8px] text-slate-600 font-mono">
-                      — Petrică. un pahar de vin. o țigară. o seară de joi. și restul e istorie. 💜
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

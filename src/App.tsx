@@ -1,21 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Zap, User, Trophy, TrendingUp, Swords, ClipboardList, Plus } from 'lucide-react';
-import { fetchAllData, groupByPerson, Entry, Person, PERSON_COLORS, getLikes, toggleLike } from './lib/shape';
+import { Zap, User, Trophy, TrendingUp, Plus } from 'lucide-react';
+import { fetchAllData, groupByPerson, Person, getLikes, toggleLike } from './lib/shape';
 import MyProfilePage from './components/pages/MyProfilePage';
 import SquadPage from './components/pages/SquadPage';
 import TrendsPage from './components/pages/TrendsPage';
-import ComparePage from './components/pages/ComparePage';
-import HistoryPage from './components/pages/HistoryPage';
 import InputPage from './components/pages/InputPage';
 
-type View = 'profile' | 'squad' | 'trends' | 'compare' | 'history' | 'log';
+type View = 'squad' | 'profile' | 'trends' | 'log';
 
 const VIEWS: { id: View; label: string; Icon: any }[] = [
-  { id: 'profile', label: 'Profile', Icon: User },
   { id: 'squad', label: 'Social', Icon: Trophy },
-  { id: 'trends', label: 'Trends', Icon: TrendingUp },
-  { id: 'compare', label: 'Compare', Icon: Swords },
-  { id: 'history', label: 'History', Icon: ClipboardList },
+  { id: 'profile', label: 'Profile', Icon: User },
+  { id: 'trends', label: 'Progres', Icon: TrendingUp },
   { id: 'log', label: 'Log', Icon: Plus },
 ];
 
@@ -73,7 +69,6 @@ export function getAdjective(name: string, people: Person[]): string {
 
 export default function App() {
   const [view, setView] = useState<View>('squad');
-  const [entries, setEntries] = useState<Entry[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePerson, setActivePerson] = useState('');
@@ -89,7 +84,6 @@ export default function App() {
   const load = useCallback(async () => {
     setLoading(true);
     const data = await fetchAllData();
-    setEntries(data);
     const ppl = groupByPerson(data);
     setPeople(ppl);
     setLoading(false);
@@ -109,8 +103,6 @@ export default function App() {
       case 'profile': return <MyProfilePage person={active} people={people} onSelect={selectPerson} likes={likes} />;
       case 'squad': return <SquadPage people={filtered} allPeople={people} gender={gender} onSelectPerson={selectPerson} likes={likes} activePerson={activePerson} onToggleLike={handleToggleLike} />;
       case 'trends': return <TrendsPage people={filtered} allPeople={people} activePerson={activePerson || (people[0]?.name ?? '')} />;
-      case 'compare': return <ComparePage people={filtered} allPeople={people} />;
-      case 'history': return <HistoryPage entries={entries} people={people} />;
       case 'log': return <InputPage people={people} onSubmitted={load} />;
     }
   };

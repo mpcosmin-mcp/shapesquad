@@ -427,58 +427,10 @@ export function getPersonInsight(p: Person): { text: string; emoji: string; tone
   return { text: 'Colectează mai multe date pentru analiza trendului.', emoji: '📌', tone: 'neutral' };
 }
 
-// ── XP System ─────────────────────────────────────────
-export interface XPBreakdown {
-  total: number;
-  checkIns: number;
-  completeness: number;
-  streakBonus: number;
-  firstEntry: number;
-  journeyBonus: number;
-  improvement: number;
-}
-
-export interface Tier {
-  name: string;
-  icon: string;
-  color: string;
-  glow: string;
-  minXP: number;
-  maxXP: number;
-}
-
+// ── Streak (kept for fun — not XP) ────────────────────
 export interface StreakInfo {
   current: number;
   longest: number;
-}
-
-export const TIERS: Tier[] = [
-  { name: 'Bronze', icon: '🥉', color: '#cd7f32', glow: 'rgba(205,127,50,0.3)', minXP: 0, maxXP: 499 },
-  { name: 'Silver', icon: '🥈', color: '#c0c0c0', glow: 'rgba(192,192,192,0.3)', minXP: 500, maxXP: 1499 },
-  { name: 'Gold', icon: '🥇', color: '#ffd700', glow: 'rgba(255,215,0,0.3)', minXP: 1500, maxXP: 2999 },
-  { name: 'Diamond', icon: '💎', color: '#b9f2ff', glow: 'rgba(185,242,255,0.4)', minXP: 3000, maxXP: 4999 },
-  { name: 'Legend', icon: '👑', color: '#ff6b35', glow: 'rgba(255,107,53,0.4)', minXP: 5000, maxXP: Infinity },
-];
-
-export function getTier(xp: number): Tier {
-  for (let i = TIERS.length - 1; i >= 0; i--) {
-    if (xp >= TIERS[i].minXP) return TIERS[i];
-  }
-  return TIERS[0];
-}
-
-export function getNextTier(xp: number): Tier | null {
-  const current = getTier(xp);
-  const idx = TIERS.indexOf(current);
-  return idx < TIERS.length - 1 ? TIERS[idx + 1] : null;
-}
-
-export function tierProgress(xp: number): number {
-  const tier = getTier(xp);
-  const next = getNextTier(xp);
-  if (!next) return 1; // Legend = maxed
-  const range = next.minXP - tier.minXP;
-  return Math.min(1, (xp - tier.minXP) / range);
 }
 
 /** Count non-null measurement fields in an entry (max 10) */
@@ -548,41 +500,6 @@ export function calcStreak(p: Person): StreakInfo {
   }
 
   return { current, longest: Math.max(longest, current) };
-}
-
-export function calcXP(p: Person): XPBreakdown {
-  // Check-ins: 100 per entry
-  const checkIns = p.entries.length * 100;
-
-  // Completeness: 10 per filled field per entry
-  const completeness = p.entries.reduce((s, e) => s + countFilledFields(e) * 10, 0);
-
-  // Streak bonus: current streak * 50
-  const streak = calcStreak(p);
-  const streakBonus = streak.current * 50;
-
-  // First entry bonus
-  const firstEntry = 200;
-
-  // Journey bonus: 25 per distinct month
-  const monthSet = new Set(p.entries.map(e => e.date.slice(0, 7)));
-  const journeyBonus = monthSet.size * 25;
-
-  // Improvement: 150 if BF dropped >2%
-  let improvement = 0;
-  if (p.entries.length > 1 && p.first.bodyFat != null && p.latest.bodyFat != null) {
-    if (p.first.bodyFat - p.latest.bodyFat > 2) improvement = 150;
-  }
-
-  return {
-    total: checkIns + completeness + streakBonus + firstEntry + journeyBonus + improvement,
-    checkIns,
-    completeness,
-    streakBonus,
-    firstEntry,
-    journeyBonus,
-    improvement,
-  };
 }
 
 // ── Likes (localStorage) ──────────────────────────────
