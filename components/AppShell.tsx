@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { MessageSquare, Users, Activity, PlusCircle, LogOut, ChevronDown } from 'lucide-react';
+import { MessageSquare, Users, Activity, PlusCircle, LogOut, ChevronDown, Home } from 'lucide-react';
 import ChatPanel from './ChatPanel';
 import ThemeToggle from './ThemeToggle';
 import OnboardingPicker from './OnboardingPicker';
@@ -12,7 +12,8 @@ import { useShapeData } from '@/lib/useShapeData';
 import { PERSON_COLORS } from '@/lib/shape';
 
 const PUBLIC_NAV = [
-  { href: '/', label: 'Squad', icon: Users },
+  { href: '/', label: 'Eu', icon: Home },
+  { href: '/squad', label: 'Squad', icon: Users },
   { href: '/progres', label: 'Progres', icon: Activity },
 ];
 
