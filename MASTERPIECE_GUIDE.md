@@ -185,268 +185,186 @@ html.light .glass {
 
 ---
 
-## 4. Layout Shift — top nav becomes LEFT sidebar
+## 4. Layout Shift — Slim TopBar + Floating Chat Bubble
 
-The somn masterpiece uses a Twitter-style left sidebar (260–280px) with the main feed centered next to it, and a chat panel that slides in from the LEFT (not right). Migrate `AppShell.tsx` accordingly.
+> **Latest masterpiece pattern (2026-05).** The earlier left-sidebar design has been retired in favor of a thinner, more page-focused layout: a slim sticky TopBar with a profile popover, plus a floating chat bubble bottom-right. Maximum dashboard real-estate, minimal chrome.
 
 **Target shape:**
 
 ```
-┌──────────────┬────────────────────────────────────────────┐
-│              │                                            │
-│  SIDEBAR     │  MAIN (no scroll on lg+)                  │
-│  ─────────   │                                            │
-│  brand       │  ┌──────┬──────┬──────┐  ← Row 1: KPIs    │
-│  profile     │  │ KPI  │ KPI  │ KPI  │                   │
-│  ┌─────────┐ │  └──────┴──────┴──────┘                   │
-│  │ Chat AI │ │  ┌────────────────────┐  ← Row 2: Squad   │
-│  │ CTA     │ │  │ Tu · Cosmin · ...  │                   │
-│  └─────────┘ │  └────────────────────┘                   │
-│  Dashboard   │  ┌──────────┬─────────┐  ← Row 3: split   │
-│  Squad       │  │ History  │ Insights│                   │
-│  Progres     │  └──────────┴─────────┘                   │
-│              │                                            │
-│  theme/logout│                                            │
-└──────────────┴────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ somn · sleep IT ai                  [theme] [👤 Petrica ▾] │  ← TopBar (sticky, 56px)
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  🦞 Hipnos · "one-liner observation"                       │
+│  ┌──────┬──────┬──────┐                                    │
+│  │ KPI  │ KPI  │ KPI  │                                    │
+│  └──────┴──────┴──────┘                                    │
+│  ...rest of dashboard scrolls naturally...                  │
+│                                                             │
+│                                       ┌──────────┐         │
+│                                       │ Hipnos · │ (🦞)    │  ← floating bubble
+│                                       │ live     │         │     bottom-right
+│                                       └──────────┘         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Key changes to `components/AppShell.tsx`:**
+**Why this beats the sidebar:**
+- No nav links to host (this is a single-page app) — a sidebar was wasted space.
+- The profile + chat are the only "global" UI elements; they don't need 260px of real-estate.
+- Page content can use the full width.
+- Mobile and desktop share the same TopBar — no drawer logic needed.
 
-1. Remove the top-nav rendering. Replace with a flex-row containing a fixed-width Sidebar component + the main content.
-2. Remove `paddingRight` chat-aware shrinking. The chat now slides from the LEFT (next to sidebar) over a dimmed backdrop — the main content does NOT shrink.
-3. On `lg+`, wrap the page in `h-dvh overflow-hidden flex flex-row`. On mobile, fall back to `min-h-dvh flex-col` with a top bar that opens a drawer for the sidebar.
-4. The mobile bottom-nav can stay (or be removed). The drawer pattern is cleaner.
+**Three components to build:**
+1. `components/AppShell.tsx` — TopBar + main + ChatPanel
+2. `components/TopBar.tsx` — slim sticky bar
+3. `components/ProfilePopover.tsx` — popover triggered from TopBar avatar chip
 
-**Skeleton:**
+**AppShell skeleton:**
 
 ```tsx
 // components/AppShell.tsx
 return (
   <>
-    <div className="min-h-dvh lg:h-dvh flex flex-col lg:flex-row lg:overflow-hidden">
-      {/* Mobile top bar — hamburger + brand */}
-      <header className="lg:hidden sticky top-0 z-30 ...">
-        <button onClick={() => setDrawerOpen(true)}>≡</button>
-        <span>shape</span>
-      </header>
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex w-[260px] xl:w-[280px] shrink-0 border-r border-[var(--border)]">
-        <Sidebar onChatOpen={() => setChatOpen(true)} />
-      </div>
-
-      {/* Mobile drawer */}
-      <aside className={`lg:hidden fixed inset-y-0 left-0 w-[300px] ... ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar onChatOpen={() => setChatOpen(true)} onCloseDrawer={() => setDrawerOpen(false)} />
-      </aside>
-
-      {/* Main content — no body scroll on lg+ */}
-      <main className="flex-1 min-w-0 lg:overflow-hidden lg:flex lg:flex-col px-3 sm:px-4 lg:px-6 py-3 lg:py-5 pb-safe">
+    <div className="min-h-dvh flex flex-col">
+      <TopBar />
+      <main className="flex-1 min-w-0 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5 pb-safe pb-24 sm:pb-28">
         {children}
       </main>
     </div>
 
-    {/* Chat panel — slides from LEFT, dims everything else */}
-    <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+    {/* Chat lives outside the flow — floating bubble bottom-right */}
+    <ChatPanel />
   </>
 );
 ```
 
+The `pb-24 sm:pb-28` ensures the floating chat bubble never overlaps the last row of dashboard content.
+
 ---
 
-## 5. Sidebar Component — chat is the star
+## 5. TopBar + ProfilePopover
 
-Create `components/Sidebar.tsx`. It owns: brand, profile card, **prominent chat CTA**, nav links, footer (theme + switch user).
-
-The chat CTA is the **most visually prominent** item — indigo gradient, pulsing live dot, takes 60+ pixels of vertical space. Nobody can miss it.
+**`components/TopBar.tsx`:**
 
 ```tsx
-// components/Sidebar.tsx — skeleton, adapt to your existing hooks
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useShapeData } from '@/lib/useShapeData';
-import { useActiveUser } from '@/lib/useActiveUser';
-import { calcXP, calcStreak, PERSON_COLORS } from '@/lib/shape';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { ProfilePopover } from '@/components/ProfilePopover';
 
-export default function Sidebar({
-  onChatOpen,
-  onCloseDrawer,
-}: {
-  onChatOpen: () => void;
-  onCloseDrawer?: () => void;
-}) {
-  const pathname = usePathname();
-  const { activeUser, setActiveUser } = useActiveUser();
-  const { people } = useShapeData();
-  if (!activeUser) return null;
-
-  const me = people.find(p => p.name === activeUser);
-  const maxEntries = Math.max(1, ...people.map(p => p.entries.length));
-  const xp = me ? calcXP(me, maxEntries) : null;
-  const streak = me ? calcStreak(me) : null;
-  const c = me ? PERSON_COLORS[people.indexOf(me) % PERSON_COLORS.length] : 'var(--accent)';
-
+export function TopBar() {
   return (
-    <aside className="flex flex-col h-full px-3 py-4 gap-4 overflow-y-auto w-full">
-      {/* Brand */}
-      <div className="flex items-baseline gap-0.5 px-1">
-        <span className="text-2xl font-bold text-[var(--fg)]">shape</span>
-        <span className="text-2xl font-bold text-[var(--fg-muted)]">squad</span>
-      </div>
+    <header className="sticky top-0 z-30 bg-[var(--bg)]/85 backdrop-blur-md border-b border-[var(--border)] pt-safe">
+      <div className="flex items-center justify-between gap-3 h-14 px-3 sm:px-5 max-w-6xl mx-auto w-full">
+        <Link href="/" className="flex items-baseline gap-2 group">
+          <span className="text-xl font-bold tracking-tight group-hover:text-[var(--accent)] transition-colors">
+            shape
+          </span>
+          <span className="text-[9px] uppercase tracking-[0.22em] text-[var(--fg-muted)] font-medium hidden sm:inline">
+            body · IT · ai
+          </span>
+        </Link>
 
-      {/* Profile card */}
-      <div
-        className="rounded-2xl p-3"
-        style={{
-          background: `linear-gradient(135deg, ${c}1a, transparent 60%)`,
-          border: `1px solid ${c}30`,
-        }}
-      >
-        <div className="flex items-center gap-3 mb-2.5">
-          <div
-            className="w-11 h-11 rounded-full flex items-center justify-center font-semibold text-white"
-            style={{ background: c }}
-          >
-            {activeUser[0]}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold truncate" style={{ color: c }}>{activeUser}</div>
-            {xp && (
-              <div className="text-[10px] text-[var(--fg-muted)] flex items-center gap-1">
-                <span style={{ color: xp.tier.color }}>{xp.tier.icon}</span>
-                <span className="num">Lv {xp.level}</span>
-                {streak && streak.current > 0 && (
-                  <>
-                    <span className="text-[var(--fg-faint)]">·</span>
-                    <span className="num font-bold text-[var(--accent)]">{streak.current}mo 🔥</span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-1.5">
+          <ThemeToggle />
+          <ProfilePopover />
         </div>
-        {xp && (
-          <>
-            <div className="h-1.5 bg-black/30 rounded-full overflow-hidden">
-              <div
-                className="h-full transition-all duration-500"
-                style={{
-                  width: `${xp.xpInLevel}%`,
-                  background: 'linear-gradient(90deg, var(--accent-soft), var(--accent))',
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[9px] num text-[var(--fg-muted)] mt-1">
-              <span>{xp.total} XP</span>
-              <span>{xp.xpInLevel}/100</span>
-            </div>
-          </>
-        )}
       </div>
-
-      {/* Chat CTA — the star */}
-      <button
-        onClick={() => { onChatOpen(); onCloseDrawer?.(); }}
-        className="group relative w-full rounded-2xl px-4 py-3.5 text-left overflow-hidden transition-all hover:translate-y-[-1px]"
-        style={{
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.20), rgba(168,85,247,0.14))',
-          border: '1px solid rgba(129,140,248,0.35)',
-          boxShadow: '0 10px 30px -12px var(--accent-glow)',
-        }}
-      >
-        <span className="absolute top-2.5 right-2.5 flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-60" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent)]" />
-        </span>
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
-            style={{ background: 'linear-gradient(135deg, var(--accent-soft), var(--accent-deep))' }}
-          >
-            💬
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm">Squad AI Coach</div>
-            <div className="text-[10px] text-[var(--fg-muted)] mt-0.5">vorbește live cu coach-ul</div>
-          </div>
-        </div>
-      </button>
-
-      {/* Nav */}
-      <nav className="flex flex-col gap-1">
-        <NavLink href="/"        icon="📊" label="Dashboard" active={pathname === '/'} onClick={onCloseDrawer} />
-        <NavLink href="/squad"   icon="👥" label="Squad"     active={pathname.startsWith('/squad')} onClick={onCloseDrawer} />
-        <NavLink href="/progres" icon="📈" label="Progres"   active={pathname.startsWith('/progres')} onClick={onCloseDrawer} />
-      </nav>
-
-      <div className="flex-1" />
-
-      {/* Footer */}
-      <div className="border-t border-[var(--border)] pt-3 flex flex-col gap-2">
-        <button
-          onClick={() => { setActiveUser(''); onCloseDrawer?.(); }}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--card-hover)]"
-        >
-          <span>↩</span> Schimbă utilizator
-        </button>
-        {/* ThemeToggle here */}
-      </div>
-    </aside>
+    </header>
   );
 }
+```
 
-function NavLink({ href, icon, label, active, onClick }: {
-  href: string; icon: string; label: string; active: boolean; onClick?: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      prefetch
-      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
-        active
-          ? 'bg-[var(--accent)]/12 text-[var(--fg)] ring-1 ring-[var(--accent)]/30'
-          : 'text-[var(--fg-muted)] hover:bg-[var(--card-hover)] hover:text-[var(--fg)]'
-      }`}
-    >
-      <span className="text-base w-5 text-center">{icon}</span>
-      <span>{label}</span>
-    </Link>
-  );
-}
+**`components/ProfilePopover.tsx`** — chip with avatar+name → opens a 18rem popover with full profile details (level, tier, XP bar, streak, total logs) and a "Schimbă utilizator" action. See full implementation in somn's `src/components/layout/profile-popover.tsx`. Key contract: outside-click + Escape close the popover, focus management is implicit.
+
+The chip itself:
+
+```tsx
+<button
+  onClick={() => setOpen(o => !o)}
+  className="flex items-center gap-2 h-9 pl-1 pr-2.5 rounded-full border transition-colors"
+  style={{
+    background: open
+      ? `linear-gradient(135deg, ${c}24, transparent 70%)`
+      : `linear-gradient(135deg, ${c}10, transparent 70%)`,
+    borderColor: open ? `${c}60` : 'var(--border)',
+  }}
+>
+  <Avatar /> <span className="text-xs font-bold hidden sm:inline" style={{ color: c }}>{name}</span> ▾
+</button>
 ```
 
 ---
 
-## 6. ChatPanel — slides from the LEFT, not right
+## 6. ChatPanel — floating bubble bottom-right, ALWAYS-VISIBLE label
 
-Modify `components/ChatPanel.tsx`. Drop the `paddingRight` shrinking pattern. The panel is now a fixed left-side overlay with a backdrop dim.
+The critical lesson from earlier iterations: **a bare icon-only bubble gets ignored.** Solve it by pairing the bubble with a permanently-visible label pill to its left.
 
-```tsx
-// Position styles only — keep the message rendering you have
-<div
-  className={`fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-200 ${
-    open ? 'opacity-100' : 'opacity-0 pointer-events-none'
-  }`}
-  onClick={onClose}
-/>
+**Layout when collapsed:**
 
-<div
-  className={`fixed z-50 flex flex-col bg-[var(--bg)] border-r border-[var(--border)] shadow-2xl shadow-black/40 overflow-hidden
-    inset-0 sm:inset-y-3 sm:left-3 sm:right-auto sm:w-[420px] sm:max-w-[calc(100vw-1.5rem)] sm:rounded-2xl sm:border
-    lg:inset-y-4 lg:left-[268px] lg:w-[380px] lg:rounded-2xl
-    xl:left-[288px] xl:w-[460px]
-    transform-gpu transition-all duration-250 ease-out origin-left
-    ${open ? 'opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 -translate-x-4 pointer-events-none'}
-  `}
-  role="dialog"
->
-  {/* existing chat content */}
-</div>
+```
+[ 🟢 Hipnos · vorbește live ]  ( 🦞 )
+ └ label pill (sm+ only)        └ lobster bubble (always visible)
 ```
 
-Sidebar is 260px (lg) / 280px (xl) + 1px border = 261/281. Chat docks at `left-[268px]` / `xl:left-[288px]` for a clean 7px gap from the sidebar.
+The pill has a pulsing live-dot, indigo gradient background, and reads "Hipnos · vorbește live". On tiny mobile (`<sm`), only the lobster bubble shows, with a small pulsing dot in its top-right corner so users still get the "alive" signal.
+
+**Skeleton:**
+
+```tsx
+return (
+  <>
+    {/* Collapsed: label pill + lobster bubble */}
+    <div
+      className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 transition-all duration-200 ${
+        open ? 'opacity-0 pointer-events-none translate-y-2 scale-95' : 'opacity-100 scale-100'
+      }`}
+    >
+      <button
+        onClick={() => setOpen(true)}
+        className="hidden sm:flex items-center gap-2 h-12 pl-3.5 pr-3 rounded-full border shadow-2xl shadow-black/40 hover:-translate-x-0.5 transition-all"
+        style={{
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))',
+          borderColor: 'rgba(129,140,248,0.35)',
+          backdropFilter: 'blur(10px)',
+        }}
+      >
+        <PulsingDot />
+        <span className="text-xs font-bold">Squad AI Coach</span>
+        <span className="text-[10px] text-[var(--fg-muted)] hidden md:inline">vorbește live</span>
+      </button>
+
+      <button
+        onClick={() => setOpen(true)}
+        className="relative w-14 h-14 rounded-full border-2 shadow-2xl shadow-black/50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(135deg, var(--accent-soft), var(--accent-deep))',
+          borderColor: 'rgba(255,255,255,0.20)',
+        }}
+      >
+        <BrandIcon size={36} />
+        {/* Outer pulse ring + mobile-only mini dot */}
+      </button>
+    </div>
+
+    {/* Backdrop + popup expand from bottom-right */}
+    <div className={`fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] ${open ? '' : 'opacity-0 pointer-events-none'}`} onClick={() => setOpen(false)} />
+    <div
+      className={`fixed z-50 flex flex-col bg-[var(--bg)] border border-[var(--border)] overflow-hidden shadow-2xl
+        inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[420px] sm:max-w-[calc(100vw-2rem)] sm:h-[min(720px,calc(100dvh-6rem))] sm:rounded-2xl
+        lg:w-[460px]
+        transform-gpu transition-all duration-250 ease-out origin-bottom-right
+        ${open ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto' : 'opacity-0 scale-95 translate-y-4 pointer-events-none'}
+      `}
+    >
+      <ChatWidget />
+    </div>
+  </>
+);
+```
+
+**Mobile UX**: the popup goes full-screen (`inset-0`). The label pill is hidden because the bubble itself is enough on small screens — the chat is one tap away.
 
 ---
 
@@ -596,19 +514,19 @@ function GlassInput({ label, unit, placeholder, value, onChange, required }: any
 
 ---
 
-## 8. Dashboard — no-scroll grid
+## 8. Dashboard — single scrolling page
 
-Rewrite `app/page.tsx`. Goal: **fits in one viewport on lg+**. Mobile stacks naturally.
+Rewrite `app/page.tsx`. The page is one column that scrolls naturally. Don't force-fit into a viewport (that's what hid charts in earlier iterations).
 
 ```tsx
 'use client';
-import Link from 'next/link';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
+import HipnosLine from '@/components/dashboard/HipnosLine';
 import KpiCards from '@/components/dashboard/KpiCards';
-import SquadBar from '@/components/dashboard/SquadBar';
 import PersonalHistory from '@/components/dashboard/PersonalHistory';
-import SquadInsights from '@/components/dashboard/SquadInsights';
+import Leaderboard from '@/components/dashboard/Leaderboard';
+import TeamChartPane from '@/components/dashboard/TeamChartPane';
 
 export default function Home() {
   const { activeUser } = useActiveUser();
@@ -618,35 +536,36 @@ export default function Home() {
   if (!me) return null;
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-4 lg:h-full">
-      {/* Row 1: 3 KPI cards */}
-      <div className="anim-fade lg:shrink-0">
+    <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
+      {/* 🦞 Top one-liner — AI vibe */}
+      <div className="anim-fade">
+        <HipnosLine person={me} people={people} />
+      </div>
+
+      {/* KPIs — 3 big numbers */}
+      <div className="anim-fade d1">
         <KpiCards person={me} />
       </div>
 
-      {/* Row 2: Squad competition */}
-      <div className="anim-fade d1 lg:shrink-0">
-        <SquadBar people={people} currentUser={activeUser} />
-      </div>
-
-      {/* Row 3: split — personal history + insights */}
-      <div className="anim-fade d2 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 lg:flex-1 lg:min-h-0">
+      {/* Split: personal history (with Hipnos pattern footer) · team leaderboard */}
+      <div className="anim-fade d2 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
         <PersonalHistory person={me} />
-        <SquadInsights people={people} currentUser={activeUser} />
+        <Leaderboard people={people} currentUser={activeUser} />
       </div>
 
-      {/* Footer link */}
-      <div className="anim-fade d3 lg:shrink-0 text-center pt-1 pb-2">
-        <Link href="/squad" className="text-[10px] text-[var(--fg-muted)] hover:text-[var(--fg)] uppercase tracking-wider font-semibold">
-          vezi istoric echipă completă →
-        </Link>
+      {/* Team multi-metric chart with tabs (kg / BF / muscle / talie) */}
+      <div className="anim-fade d3">
+        <TeamChartPane people={people} />
       </div>
     </div>
   );
 }
 ```
 
-**Critical CSS contract:** the wrapper uses `lg:h-full` so it fills `main` (which is `lg:overflow-hidden lg:flex lg:flex-col` from AppShell). Row 1 and Row 2 use `lg:shrink-0` so they take their content height. Row 3 uses `lg:flex-1 lg:min-h-0` so it absorbs the remainder — and `PersonalHistory` scrolls *inside its own card* if rows overflow, never the page.
+**Layout principles:**
+- Page scrolls naturally. No `lg:h-full` / `lg:overflow-hidden` hacks. The user expects to scroll.
+- Wrap content in `max-w-6xl mx-auto` so it stays readable on ultra-wide displays.
+- AppShell's `<main>` already pads bottom with `pb-24 sm:pb-28` so the floating chat bubble doesn't overlap the last row.
 
 ---
 
@@ -897,111 +816,177 @@ export default function PersonalHistory({ person, limit = 6 }: { person: Person;
 
 ---
 
-## 12. Squad Insights — `components/dashboard/SquadInsights.tsx`
+## 12. Hipnos presence — top one-liner + pattern footer in history
 
-Combined panel: **computed factual stat** at top + **AI-generated line** at bottom. The AI part calls your existing chat/insight endpoint (or a new `/api/vibe`) and caches in localStorage per `(user, latestDate)`.
+**The old "SquadInsights" card is retired.** It got demoted into two leaner Hipnos touch-points so the AI feels present without taking up a full card slot:
+
+### 12a. Top one-liner — `components/dashboard/HipnosLine.tsx`
+
+A single sentence at the top of the page. Fetched once per `(user, latestLogDate)`, cached in localStorage. Returns `null` silently if no AI text yet — never an empty placeholder.
 
 ```tsx
 'use client';
 import { useEffect, useState } from 'react';
-import { Person, calcXP } from '@/lib/shape';
+import { Person } from '@/lib/shape';
 
-export default function SquadInsights({ people, currentUser }: { people: Person[]; currentUser: string }) {
-  const me = people.find(p => p.name === currentUser);
-  if (!me) return null;
+// v2 — bump the key when you change the prompt format so users
+// don't keep stale cached text.
+const KEY = (user: string, lastDate: string) => `squad_vibe_v2_${user}_${lastDate}`;
 
-  const maxEntries = Math.max(1, ...people.map(p => p.entries.length));
-  const myXP = calcXP(me, maxEntries);
-  const ranked = people
-    .map(p => ({ name: p.name, xp: calcXP(p, maxEntries).total }))
-    .sort((a, b) => b.xp - a.xp);
-  const myRank = ranked.findIndex(r => r.name === currentUser) + 1;
-  const avgBf = (() => {
-    const present = people.flatMap(p => p.entries.filter(e => e.bodyFat != null).map(e => e.bodyFat!));
-    return present.length ? Math.round(present.reduce((s, v) => s + v, 0) / present.length * 10) / 10 : null;
-  })();
+export default function HipnosLine({ person, people }: { person: Person; people: Person[] }) {
+  const [text, setText] = useState<string | null>(null);
+  const lastDate = person.latest.date;
+  const user = person.name;
 
-  // AI vibe (cached per (user, latest date))
-  const lastDate = me.latest.date;
-  const cacheKey = `shapesquad_vibe_${currentUser}_${lastDate}`;
-  const [aiText, setAiText] = useState<string | null>(null);
   useEffect(() => {
+    if (!user || !lastDate) return;
+    const k = KEY(user, lastDate);
     try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) { setAiText(cached); return; }
+      const cached = localStorage.getItem(k);
+      if (cached) { setText(cached); return; }
     } catch {}
     fetch('/api/vibe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: currentUser, people }),
+      body: JSON.stringify({ user, people }),
     })
       .then(r => r.json())
       .then((j: { text?: string }) => {
         if (j.text) {
-          setAiText(j.text);
-          try { localStorage.setItem(cacheKey, j.text); } catch {}
+          setText(j.text);
+          try { localStorage.setItem(k, j.text); } catch {}
         }
       })
       .catch(() => {});
-  }, [cacheKey, currentUser, people]);
+  }, [user, lastDate, people]);
+
+  if (!text) return null;
 
   return (
-    <section className="card px-5 py-4 lg:py-5 relative overflow-hidden">
-      <div
-        className="absolute inset-0 pointer-events-none opacity-50"
-        style={{ background: 'radial-gradient(circle at 0% 0%, rgba(99,102,241,0.10), transparent 55%)' }}
-      />
-      <div className="relative space-y-3">
-        <div className="flex items-start gap-3">
-          <span className="text-base">👥</span>
-          <div className="flex-1 min-w-0">
-            <div className="label">Squad Insights</div>
-            <p className="text-sm mt-1 leading-relaxed">
-              {avgBf != null
-                ? <>Squad-ul are BF mediu <strong className="num text-[var(--accent)]">{avgBf}%</strong>. </>
-                : <span className="text-[var(--fg-muted)]">Nu sunt destule date pentru media squad-ului. </span>}
-              {myRank > 0 && (
-                <>Ești pe locul <strong className="num text-[var(--accent)]">#{myRank}</strong> la XP ({myXP.total} pts).</>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {aiText && (
-          <div className="flex items-start gap-3 pt-3 border-t border-[var(--border)]/70">
-            <span className="text-base">💪</span>
-            <div className="flex-1 min-w-0">
-              <div className="label" style={{ color: 'var(--accent)' }}>Squad AI Coach</div>
-              <p className="text-sm mt-1 leading-relaxed">{aiText}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
+    <div
+      className="flex items-center gap-2.5 px-3 py-2 rounded-xl border relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(90deg, rgba(99,102,241,0.08), transparent 70%)',
+        borderColor: 'rgba(129,140,248,0.18)',
+      }}
+    >
+      <span className="text-base shrink-0">🦞</span>
+      <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-[var(--accent)] shrink-0">
+        Squad AI
+      </span>
+      <span className="text-[var(--fg-dim)] shrink-0 hidden sm:inline">·</span>
+      <p className="text-sm text-[var(--fg)] truncate flex-1 min-w-0">{text}</p>
+    </div>
   );
 }
 ```
 
-You'll need a `/api/vibe` route that takes `{ user, people }` and returns `{ text: string }` (one short sentence from Claude Haiku, **max 3 sentences, sharp, no fluff**). Reuse your existing chat infrastructure — same Anthropic client, same env var.
+**API contract for `/api/vibe`:** body `{ user, people }`, returns `{ text: string }`. Prompt must enforce **max 14 words, ONE sentence, sharp, no fluff, reference one real number for the user.** Example:
+
+```
+"${fn}, săpt asta media ta BF e 19.4 — la 0.6 sub Cosmin."
+```
+
+### 12b. Pattern footer in PersonalHistory — `personalTrendNote()` in `lib/shape.ts`
+
+Add this deterministic helper to `lib/shape.ts`. It runs client-side (no AI call → instant render). The PersonalHistory card uses it to show a 🦞 footer line so Hipnos feels present in the history view too.
+
+```ts
+// lib/shape.ts
+export interface TrendNote {
+  text: string;
+  tone: 'good' | 'neutral' | 'warn';
+}
+
+export function personalTrendNote(person: Person): TrendNote | null {
+  const mine = [...person.entries].sort((a, b) => a.date.localeCompare(b.date));
+  if (mine.length < 2) return null;
+
+  const last = mine[mine.length - 1];
+  const prev = mine[mine.length - 2];
+
+  // Body Fat consistency — multi-entry trend
+  const bfPresent = mine.filter(e => e.bodyFat != null);
+  if (bfPresent.length >= 3) {
+    const first = bfPresent[0].bodyFat!;
+    const lastBf = bfPresent[bfPresent.length - 1].bodyFat!;
+    const drop = first - lastBf;
+    if (drop >= 2) return { text: `BF −${drop.toFixed(1)}% de la start · momentum`, tone: 'good' };
+    if (drop <= -2) return { text: `BF +${Math.abs(drop).toFixed(1)}% de la start · recalibrare`, tone: 'warn' };
+  }
+
+  // Muscle gain
+  if (last.muscle != null && prev.muscle != null) {
+    const m = last.muscle - prev.muscle;
+    if (m >= 0.5) return { text: `+${m.toFixed(1)}% masă musculară · keep going`, tone: 'good' };
+    if (m <= -0.5) return { text: `${m.toFixed(1)}% masă musculară · atenție la macros`, tone: 'warn' };
+  }
+
+  // Weight stability
+  if (last.kg != null && prev.kg != null) {
+    const w = last.kg - prev.kg;
+    if (Math.abs(w) <= 0.3) return { text: `greutate stabilă · ${last.kg.toFixed(1)}kg`, tone: 'neutral' };
+  }
+
+  return null;
+}
+```
+
+Then in `PersonalHistory.tsx`, append at the bottom of the card:
+
+```tsx
+{trend && (
+  <div className="mt-3 pt-3 border-t border-[var(--border)]/70 flex items-start gap-2.5">
+    <span className="text-base shrink-0">🦞</span>
+    <div className="flex-1 min-w-0">
+      <div className="text-[9px] uppercase tracking-[0.16em] font-bold text-[var(--accent)] mb-0.5">
+        Squad AI · pattern
+      </div>
+      <p
+        className="text-xs leading-relaxed"
+        style={{
+          color: trend.tone === 'good' ? 'var(--good)'
+            : trend.tone === 'warn' ? 'var(--warn)'
+            : 'var(--fg-muted)',
+        }}
+      >
+        {trend.text}
+      </p>
+    </div>
+  </div>
+)}
+```
+
+### 12c. TeamChartPane — bottom of the page
+
+The multi-metric chart with tabs (kg / BF / muscle / talie) replaces the old separate `/squad` or `/detail` page. Build it as `components/dashboard/TeamChartPane.tsx` with:
+- A small header row: title + range tabs (7 / 30 / all)
+- A second row of metric tabs (kg, BF%, muscle, talie) with a target indicator on the right
+- A big SVG line chart underneath with all teammates overlaid, target line, smooth Bezier curves
+
+Reuse your existing chart component if you have one; otherwise inline the SVG path generation (≤80 lines).
 
 ---
 
 ## 13. Migration order (execute in this sequence)
 
 ```
-1.  app/globals.css                ← Section 2 + 3 (tokens + utilities)
-2.  components/Sidebar.tsx          ← create new (Section 5)
-3.  components/AppShell.tsx         ← refactor (Section 4)
-4.  components/ChatPanel.tsx        ← reposition (Section 6)
-5.  components/OnboardingPicker.tsx ← rewrite as combined picker+log (Section 7)
-6.  components/dashboard/KpiCards.tsx          ← create new (Section 9)
-7.  components/dashboard/SquadBar.tsx          ← create new (Section 10)
-8.  components/dashboard/PersonalHistory.tsx   ← create new (Section 11)
-9.  components/dashboard/SquadInsights.tsx     ← create new (Section 12)
-10. app/api/vibe/route.ts           ← create new (Anthropic call, 3-sentence cap)
-11. app/page.tsx                    ← rewrite as no-scroll grid (Section 8)
-12. npm run build                   ← verify nothing broken
-13. delete unused: MetricCard, MeasurementsTable (if no longer imported)
+1.  app/globals.css                       ← Section 2 + 3 (tokens + utilities)
+2.  components/ProfilePopover.tsx         ← create new (Section 5)
+3.  components/TopBar.tsx                 ← create new (Section 5)
+4.  components/AppShell.tsx               ← refactor: TopBar + main + ChatPanel (Section 4)
+5.  components/ChatPanel.tsx              ← floating bubble + label pill (Section 6)
+6.  components/OnboardingPicker.tsx       ← combined picker+log (Section 7)
+7.  components/dashboard/KpiCards.tsx     ← create new (Section 9)
+8.  components/dashboard/PersonalHistory.tsx ← create new (Section 11) — with Hipnos pattern footer
+9.  components/dashboard/HipnosLine.tsx   ← top-of-page one-liner (uses /api/vibe)
+10. components/dashboard/Leaderboard.tsx  ← keep/adapt existing
+11. components/dashboard/TeamChartPane.tsx ← multi-metric switcher chart
+12. app/api/vibe/route.ts                 ← one-line cap, sharp prompt
+13. lib/shape.ts                          ← add personalTrendNote() helper
+14. app/page.tsx                          ← Hipnos line → KPIs → split (History + Leaderboard) → TeamChart
+15. npm run build                         ← verify nothing broken
+16. delete unused: legacy MetricCard, MeasurementsTable, any old detail pages
 ```
 
 **At each step, commit.** Don't batch — small commits make it easy to bisect if visual regression appears.
@@ -1056,9 +1041,10 @@ What you delete: `MetricCard.tsx`, `MeasurementsTable.tsx`, the existing card ch
 ## 17. TL;DR — what success looks like
 
 After migration:
-- ✅ Login page = aurora gradient + glassmorphism card, pick user → log form inline → enter dashboard. One screen, one flow.
-- ✅ Dashboard fits in viewport on `lg+` — no body scroll. Three rows: KPIs / Squad bar / History+Insights.
-- ✅ Chat lives in the left sidebar as a prominent indigo CTA. Tapping it slides a panel in from the LEFT.
+- ✅ **Login page** = aurora gradient + glassmorphism card, pick user → log form inline → enter dashboard. One screen, one flow.
+- ✅ **TopBar** sticky at top: brand left, theme + profile chip right. Click chip → popover with level, XP bar, streak, switch-user.
+- ✅ **Dashboard is a single scrolling page**: Hipnos one-liner → KPI cards → (Personal History with Hipnos pattern footer + Team Leaderboard) → Team multi-metric chart.
+- ✅ **Chat** = floating bubble bottom-right with an ALWAYS-VISIBLE label pill ("Squad AI Coach · vorbește live"). Popup expands from bottom-right.
 - ✅ Slate 950 background. Indigo accent. Big numbers (5xl–6xl on KPIs). Generous spacing.
 - ✅ Status pills (`optim` / `average` / `poor`) in the history table.
 - ✅ KPI cards have a glowing colored bottom border.
@@ -1067,14 +1053,28 @@ After migration:
 **Commit message for the final push:**
 
 ```
-ShapeSquad Masterpiece UI: Slate + Indigo, no-scroll dashboard
+ShapeSquad Masterpiece UI: TopBar + floating chat, single-page dashboard
 
-Migrate to the somn masterpiece design language. Login combines picker
-+ quick log (aurora + glass). Dashboard fits in viewport: 3 KPI cards
-(kg / BF / muscle) → squad XP bar → history table + insights split.
-Chat moves from right dock to LEFT sidebar CTA with slide-in panel.
-Slate 950 base, indigo accent, status pills, glowing KPI borders.
+Migrate to the somn masterpiece design language. Slate 950 base, indigo
+accent. Sticky slim TopBar with profile popover replaces the sidebar.
+Chat lives as a floating bubble bottom-right with an always-visible
+label pill so users can't miss it. Single-page dashboard: Hipnos
+one-liner → KPI cards (kg/BF/muscle) → History+Leaderboard split →
+Team multi-metric chart. Personal history grows a Hipnos pattern
+footer with deterministic trend observations.
 ```
+
+---
+
+## 18. Design evolution log (so future readers know what changed)
+
+**v1 (sleep tracker original, lime accent, zinc base):** retired.
+
+**v2 (somn masterpiece, slate + indigo, LEFT sidebar):** see git history, branch retired.
+
+**v3 (current — somn live):** TopBar + floating chat bubble. **Use this going forward** for all squad-style projects.
+
+The /detail page pattern was a mistake — splitting team data onto a second page hid the multi-metric chart behind a no-scroll wall. **Keep everything on one page, let it scroll.** A sticky TopBar handles brand + identity; the rest is content.
 
 ---
 
