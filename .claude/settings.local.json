@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(gh api:*)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(where npm:*)",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 24904 //F)",
+      "Bash(where npx:*)",
+      "Bash(where node:*)",
+      "Bash(git branch *)",
+      "Bash(npx next *)"
+    ]
+  }
+}
