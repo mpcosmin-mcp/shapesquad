@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
 import { METRICS, submitEntry } from '@/lib/shape';
-import { Lock } from 'lucide-react';
+import { Lock, CheckCircle2 } from 'lucide-react';
 
 const LOG_PIN = 'shapesquad2025';
 
@@ -27,7 +27,11 @@ export default function LogPage() {
   async function handleSubmit() {
     if (!form.name) return;
     setSubmitting(true);
-    const entry: Record<string, any> = { Nume: form.name, Date: form.date, Gender: form.gender };
+    const entry: Record<string, any> = {
+      Nume: form.name,
+      Date: form.date,
+      Gender: form.gender,
+    };
     METRICS.forEach((m) => {
       if (form[m.key]) entry[m.label] = parseFloat(form[m.key]);
     });
@@ -45,15 +49,18 @@ export default function LogPage() {
     }
   }
 
-  const inp = 'w-full rounded-xl px-3 py-2 font-mono text-sm outline-none bg-white/5 border border-white/10 focus:border-blue-500';
+  const inp =
+    'w-full px-3 py-2 rounded-lg font-mono text-sm tabular-nums outline-none bg-bg border border-border focus:border-bronze focus:shadow-glow-bronze transition-all text-fg placeholder:text-fg-faint';
 
   if (!unlocked) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="glass rounded-2xl p-6 max-w-sm w-full text-center">
-          <Lock className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-          <h2 className="font-black text-base mb-1">Admin Only</h2>
-          <p className="text-[11px] text-slate-500 mb-3">Introdu PIN-ul pentru logging</p>
+        <div className="panel panel-lifted p-6 max-w-sm w-full text-center anim-scale">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber/10 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-amber" />
+          </div>
+          <h2 className="font-display text-lg font-bold text-fg mb-1">Admin Only</h2>
+          <p className="text-[11px] text-fg-muted mb-4">Introdu PIN-ul pentru logging</p>
           <input
             type="password"
             placeholder="PIN"
@@ -68,18 +75,15 @@ export default function LogPage() {
                 else setPinErr(true);
               }
             }}
-            className={`w-full rounded-xl px-3 py-2 font-mono text-sm text-center outline-none mb-3 bg-white/5 border ${
-              pinErr ? 'border-red-500' : 'border-white/10 focus:border-blue-500'
-            }`}
-            style={{ color: 'var(--text)' }}
+            className={`${inp} text-center mb-3 ${pinErr ? 'border-rose' : ''}`}
           />
-          {pinErr && <p className="text-xs text-red-400 mb-2 font-bold">PIN greșit</p>}
+          {pinErr && <p className="text-xs text-rose font-medium mb-2">PIN greșit</p>}
           <button
             onClick={() => {
               if (pin === LOG_PIN) setUnlocked(true);
               else setPinErr(true);
             }}
-            className="w-full py-2 rounded-xl font-black text-sm bg-blue-600 text-white"
+            className="btn btn-primary w-full"
           >
             Unlock
           </button>
@@ -90,29 +94,40 @@ export default function LogPage() {
 
   return (
     <div className="h-full flex flex-col gap-3">
-      <div className="shrink-0 flex items-center justify-between">
+      <div className="shrink-0 flex items-end justify-between anim-fade">
         <div>
-          <h1 className="font-black text-base">📝 Log Measurement</h1>
-          <p className="text-[10px] text-slate-500 font-medium">💡 Retroactiv permis ✅</p>
+          <h1 className="font-display text-xl md:text-2xl font-bold tracking-tight text-fg">
+            Log Measurement
+          </h1>
+          <p className="text-[11px] text-fg-muted mt-0.5">
+            💡 Retroactiv permis · alege orice dată din trecut
+          </p>
         </div>
         {toast && (
-          <div className="chip text-[11px] bg-green-500/10 text-green-400 border border-green-500/30">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald/10 border border-emerald/30 text-emerald text-xs font-medium anim-scale">
+            <CheckCircle2 className="w-3.5 h-3.5" />
             {toast}
           </div>
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-        <div className="glass rounded-2xl p-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
+        <div className="panel p-4 space-y-4 anim-fade d1">
           {/* Name + Date + Gender row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Nume</label>
+              <label className="label block mb-1.5">Nume</label>
               {!newName ? (
-                <div className="flex gap-1">
-                  <select value={form.name} onChange={(e) => set('name', e.target.value)} className={`flex-1 ${inp}`} style={{ color: 'var(--text)' }}>
+                <div className="flex gap-1.5">
+                  <select
+                    value={form.name}
+                    onChange={(e) => set('name', e.target.value)}
+                    className={`flex-1 ${inp}`}
+                  >
                     {names.map((n) => (
-                      <option key={n} value={n}>{n}</option>
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
                     ))}
                   </select>
                   <button
@@ -120,36 +135,35 @@ export default function LogPage() {
                       setNewName(true);
                       set('name', '');
                     }}
-                    className="px-2 py-1 rounded-xl text-[10px] font-bold bg-white/5 text-slate-400"
+                    className="btn btn-secondary"
                   >
                     + Nou
                   </button>
                 </div>
               ) : (
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   <input
                     type="text"
                     placeholder="Membru nou"
                     value={form.name}
                     onChange={(e) => set('name', e.target.value)}
                     className={`flex-1 ${inp}`}
-                    style={{ color: 'var(--text)' }}
                   />
                   <button
                     onClick={() => {
                       setNewName(false);
                       set('name', names[0] || '');
                     }}
-                    className="px-2 py-1 rounded-xl text-[10px] font-bold bg-white/5 text-slate-400"
+                    className="btn btn-ghost"
                   >
-                    X
+                    ✕
                   </button>
                 </div>
               )}
             </div>
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block mb-1">
-                Data <span className="font-medium normal-case tracking-normal text-slate-600">(retroactiv OK)</span>
+              <label className="label block mb-1.5">
+                Data <span className="normal-case font-normal text-fg-faint">(retroactiv OK)</span>
               </label>
               <input
                 type="date"
@@ -157,18 +171,21 @@ export default function LogPage() {
                 onChange={(e) => set('date', e.target.value)}
                 max={new Date().toISOString().slice(0, 10)}
                 className={inp}
-                style={{ color: 'var(--text)' }}
               />
             </div>
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Gen</label>
-              <div className="flex gap-1">
+              <label className="label block mb-1.5">Gen</label>
+              <div className="flex gap-1.5">
                 {['M', 'F'].map((g) => (
                   <button
                     key={g}
                     onClick={() => set('gender', g)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-black transition-all ${
-                      form.gender === g ? (g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white') : 'bg-white/5 text-slate-400'
+                    className={`flex-1 py-2 rounded-lg font-display text-base font-bold transition-all ${
+                      form.gender === g
+                        ? g === 'M'
+                          ? 'bg-cyan text-bg shadow-glow-cyan'
+                          : 'bg-rose text-white'
+                        : 'bg-card border border-border text-fg-muted'
                     }`}
                   >
                     {g === 'M' ? '♂' : '♀'}
@@ -178,13 +195,14 @@ export default function LogPage() {
             </div>
           </div>
 
-          {/* Body comp */}
           <div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Body Composition</div>
+            <div className="label mb-2">Body composition</div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {METRICS.filter((m) => m.category === 'body').map((m) => (
                 <div key={m.key}>
-                  <label className="text-[9px] text-slate-600 block mb-0.5 font-bold">{m.icon} {m.label}</label>
+                  <label className="text-[10px] text-fg-muted font-semibold block mb-1">
+                    {m.icon} {m.label}
+                  </label>
                   <input
                     type="number"
                     step="0.1"
@@ -192,20 +210,20 @@ export default function LogPage() {
                     value={form[m.key] || ''}
                     onChange={(e) => set(m.key, e.target.value)}
                     className={inp}
-                    style={{ color: 'var(--text)' }}
                   />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Measurements */}
           <div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Măsurători (cm)</div>
+            <div className="label mb-2">Măsurători (cm)</div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {METRICS.filter((m) => m.category === 'measurement').map((m) => (
                 <div key={m.key}>
-                  <label className="text-[9px] text-slate-600 block mb-0.5 font-bold">{m.icon} {m.label}</label>
+                  <label className="text-[10px] text-fg-muted font-semibold block mb-1">
+                    {m.icon} {m.label}
+                  </label>
                   <input
                     type="number"
                     step="0.5"
@@ -213,7 +231,6 @@ export default function LogPage() {
                     value={form[m.key] || ''}
                     onChange={(e) => set(m.key, e.target.value)}
                     className={inp}
-                    style={{ color: 'var(--text)' }}
                   />
                 </div>
               ))}
@@ -223,9 +240,9 @@ export default function LogPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting || !form.name}
-            className="w-full py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-blue-600 to-purple-600 text-white disabled:opacity-40"
+            className="btn btn-primary w-full py-3 text-sm"
           >
-            {submitting ? 'Se salvează...' : '💾 Salvează'}
+            {submitting ? 'Se salvează...' : '💾 Salvează măsurătoarea'}
           </button>
         </div>
       </div>

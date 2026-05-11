@@ -2,9 +2,21 @@
 
 import { useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Heart, ArrowLeft } from 'lucide-react';
+import { Heart, ArrowLeft, ArrowRight, Flame } from 'lucide-react';
 import { useShapeData } from '@/lib/useShapeData';
-import { calcXP, calcStreak, getPersonInsight, PERSON_COLORS, getLikes, getLikeCount, delta, deltaColor, fmt, MetricKey } from '@/lib/shape';
+import {
+  calcXP,
+  calcStreak,
+  getPersonInsight,
+  PERSON_COLORS,
+  getLikes,
+  getLikeCount,
+  delta,
+  deltaColor,
+  fmt,
+  MetricKey,
+  Person,
+} from '@/lib/shape';
 import ProgressChartClient from '@/components/ProgressChartClient';
 
 function ProfileInner() {
@@ -14,46 +26,75 @@ function ProfileInner() {
   const { loading, people } = useShapeData();
   const [tab, setTab] = useState<'overview' | 'progres' | 'istoric'>('overview');
 
-  const maxEntries = useMemo(() => Math.max(1, ...people.map((p) => p.entries.length)), [people]);
+  const maxEntries = useMemo(
+    () => Math.max(1, ...people.map((p) => p.entries.length)),
+    [people]
+  );
   const p = useMemo(() => people.find((pp) => pp.name === name) || null, [people, name]);
 
   if (loading) {
-    return <div className="h-full flex items-center justify-center text-sm text-slate-400">Loading...</div>;
+    return (
+      <div className="h-full flex items-center justify-center text-fg-dim font-display italic">
+        Citesc...
+      </div>
+    );
   }
 
-  // Person picker
+  // ═══ PERSON PICKER ═══
   if (!p) {
     return (
       <div className="h-full flex flex-col gap-3">
-        <div className="shrink-0">
-          <h1 className="font-black text-xl">👋 Cine ești?</h1>
-          <p className="text-xs text-slate-500 mt-1">Alege profilul tău din echipă</p>
+        <div className="shrink-0 anim-fade">
+          <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-fg">
+            Cine ești?
+          </h1>
+          <p className="text-xs text-fg-muted mt-1">Alege profilul din echipă · click pentru detalii</p>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 content-start">
+        <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 content-start -mr-2 pr-2">
           {people.map((person, i) => {
             const color = PERSON_COLORS[i % PERSON_COLORS.length];
             const xp = calcXP(person, maxEntries);
+            const streak = calcStreak(person);
             return (
               <button
                 key={person.name}
                 onClick={() => {
-                  try { localStorage.setItem('shapesquad_active_user', person.name); } catch {}
+                  try {
+                    localStorage.setItem('shapesquad_active_user', person.name);
+                  } catch {}
                   router.push(`/profile?name=${encodeURIComponent(person.name)}`);
                 }}
-                className="glass p-4 rounded-2xl text-left trading-card relative overflow-hidden"
+                className={`panel panel-interactive p-4 text-left relative overflow-hidden anim-fade d${Math.min(i + 1, 8)}`}
               >
-                <div className="accent-strip" style={{ background: color }} />
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-base font-black text-white mb-2"
-                  style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}
+                  className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-[0.08] -mr-6 -mt-6"
+                  style={{ background: color }}
+                />
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-display font-black text-white mb-3 shadow-panel"
+                  style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
                 >
                   {person.name[0]}
                 </div>
-                <div className="font-black text-sm text-white">{person.name}</div>
-                <div className="text-[9px] text-slate-500 mb-2">{person.entries.length} check-in-uri</div>
-                <span className="chip text-[9px] font-black" style={{ background: `${xp.tier.color}18`, color: xp.tier.color }}>
-                  {xp.tier.icon} LVL {xp.level}
-                </span>
+                <div className="font-display font-bold text-base text-fg leading-tight">
+                  {person.name}
+                </div>
+                <div className="text-[10px] text-fg-muted font-mono mt-0.5">
+                  {person.entries.length} check-in-uri
+                </div>
+                <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                  <span
+                    className="chip"
+                    style={{ background: `${xp.tier.color}22`, color: xp.tier.color }}
+                  >
+                    {xp.tier.icon} LVL {xp.level}
+                  </span>
+                  {streak.current > 0 && (
+                    <span className="streak-badge">
+                      <Flame className="w-2.5 h-2.5" /> {streak.current}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -62,6 +103,7 @@ function ProfileInner() {
     );
   }
 
+  // ═══ PROFILE DETAIL ═══
   const ci = people.indexOf(p);
   const color = PERSON_COLORS[ci % PERSON_COLORS.length];
   const streak = calcStreak(p);
@@ -72,59 +114,99 @@ function ProfileInner() {
 
   return (
     <div className="h-full flex flex-col gap-3">
-      {/* ═══ HERO (compact) ═══ */}
-      <div className="glass rounded-2xl p-4 shrink-0 relative overflow-hidden">
-        <div className="accent-strip" style={{ background: color, height: 3 }} />
-        <div className="flex items-center gap-3">
+      {/* ═══ HERO ═══ */}
+      <div className="panel p-4 shrink-0 relative overflow-hidden anim-fade">
+        <div
+          className="absolute -right-12 -top-12 w-44 h-44 rounded-full opacity-[0.08]"
+          style={{ background: color }}
+        />
+        <div className="flex items-center gap-3 relative">
           <button
             onClick={() => router.push('/profile')}
-            className="text-slate-400 hover:text-white p-1 -ml-1"
-            aria-label="Înapoi"
+            className="btn btn-ghost btn-icon shrink-0"
+            aria-label="Înapoi la lista de membri"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shrink-0"
-            style={{ background: `linear-gradient(135deg, ${color}, ${color}88)` }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-display font-black text-white shrink-0 shadow-panel"
+            style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
           >
             {p.name[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-black text-lg text-white truncate">{p.name}</h1>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <span className="chip text-[9px] font-black" style={{ background: `${xp.tier.color}18`, color: xp.tier.color }}>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-fg truncate leading-tight">
+              {p.name}
+            </h1>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span
+                className="chip"
+                style={{ background: `${xp.tier.color}22`, color: xp.tier.color }}
+              >
                 {xp.tier.icon} LVL {xp.level}
               </span>
-              {streak.current > 0 && <span className="streak-badge">🔥 {streak.current}</span>}
-              <span className="chip text-[9px] bg-white/5 text-slate-400">{p.entries.length} check-in-uri</span>
+              {streak.current > 0 && (
+                <span className="streak-badge">
+                  <Flame className="w-3 h-3" /> {streak.current} luni
+                </span>
+              )}
+              <span className="chip bg-card border border-border text-fg-muted">
+                {p.entries.length} check-in-uri
+              </span>
               {likeCount > 0 && (
-                <span className="text-[10px] text-pink-400 font-bold flex items-center gap-0.5">
-                  <Heart className="w-2.5 h-2.5" fill="currentColor" /> {likeCount}
+                <span className="text-[10px] text-rose font-bold flex items-center gap-1">
+                  <Heart className="w-3 h-3" fill="currentColor" /> {likeCount}
                 </span>
               )}
             </div>
           </div>
-          {/* XP bar inline */}
-          <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 w-32">
-            <div className="font-mono text-sm font-black" style={{ color: xp.tier.color }}>{xp.total} XP</div>
-            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+
+          {/* XP bar */}
+          <div className="hidden md:flex flex-col items-end gap-1 shrink-0 w-36">
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className="font-mono text-base font-bold tabular-nums"
+                style={{ color: xp.tier.color }}
+              >
+                {xp.total}
+              </span>
+              <span className="label">XP</span>
+            </div>
+            <div className="progress-track w-full">
               <div
-                className="h-full rounded-full"
+                className="progress-fill"
                 style={{
                   width: `${xp.xpInLevel}%`,
-                  background: `linear-gradient(90deg, ${xp.tier.color}, ${xp.tier.color}cc)`,
-                  boxShadow: `0 0 8px ${xp.tier.color}66`,
+                  background: `linear-gradient(90deg, ${xp.tier.color}, ${xp.tier.color}cc, ${xp.tier.color})`,
+                  boxShadow: `0 0 12px ${xp.tier.color}66`,
                 }}
               />
             </div>
-            <div className="text-[8px] font-mono text-slate-500">{xp.xpInLevel}/100 · +{xp.perLog}/log</div>
+            <div className="text-[9px] font-mono text-fg-muted tabular-nums">
+              {xp.xpInLevel}/100 · +{xp.perLog}/log
+            </div>
           </div>
         </div>
+
+        {/* AI insight */}
         <div
-          className="mt-2 rounded-xl px-3 py-1.5 text-[11px] font-bold"
+          className="mt-3 rounded-lg px-3 py-2 text-[11px] font-medium leading-relaxed"
           style={{
-            background: insight.tone === 'good' ? 'rgba(0,255,136,0.06)' : insight.tone === 'warn' ? 'rgba(249,115,22,0.06)' : 'rgba(255,255,255,0.03)',
-            color: insight.tone === 'good' ? '#00ff88' : insight.tone === 'warn' ? '#f97316' : '#94a3b8',
+            background:
+              insight.tone === 'good'
+                ? 'color-mix(in srgb, var(--emerald) 8%, transparent)'
+                : insight.tone === 'warn'
+                ? 'color-mix(in srgb, var(--amber) 8%, transparent)'
+                : 'color-mix(in srgb, var(--fg-muted) 6%, transparent)',
+            border: `1px solid ${
+              insight.tone === 'good'
+                ? 'color-mix(in srgb, var(--emerald) 20%, transparent)'
+                : insight.tone === 'warn'
+                ? 'color-mix(in srgb, var(--amber) 20%, transparent)'
+                : 'var(--border)'
+            }`,
+            color:
+              insight.tone === 'good' ? 'var(--emerald)' : insight.tone === 'warn' ? 'var(--amber)' : 'var(--fg-dim)',
           }}
         >
           {insight.emoji} {insight.text}
@@ -132,16 +214,20 @@ function ProfileInner() {
       </div>
 
       {/* ═══ TABS ═══ */}
-      <div className="tab-bar shrink-0 self-start">
+      <div className="shrink-0 flex items-center gap-1 anim-fade d1">
         {(['overview', 'progres', 'istoric'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`tab ${tab === t ? 'on' : ''}`}>
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`nav-pill ${tab === t ? 'active' : ''}`}
+          >
             {t === 'overview' ? 'Overview' : t === 'progres' ? 'Progres' : 'Istoric'}
           </button>
         ))}
       </div>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden anim-fade d2">
         {tab === 'overview' && <OverviewTab person={p} color={color} />}
         {tab === 'progres' && <ProgressChartClient person={p} color={color} />}
         {tab === 'istoric' && <IstoricTab person={p} />}
@@ -150,33 +236,54 @@ function ProfileInner() {
   );
 }
 
-function OverviewTab({ person, color }: { person: any; color: string }) {
+function OverviewTab({ person, color }: { person: Person; color: string }) {
   const last = person.latest;
   const first = person.first;
   const stats: { key: MetricKey; label: string; unit: string; icon: string; lower?: boolean }[] = [
     { key: 'kg', label: 'Greutate', unit: 'kg', icon: '⚖️' },
     { key: 'bodyFat', label: 'Body Fat', unit: '%', icon: '🔥', lower: true },
     { key: 'talie', label: 'Talie', unit: 'cm', icon: '📏', lower: true },
-    { key: 'muscle', label: 'Masă musculară', unit: '%', icon: '💪' },
+    { key: 'muscle', label: 'Masă musc.', unit: '%', icon: '💪' },
   ];
   return (
-    <div className="h-full grid grid-cols-2 gap-3 content-start anim-fade">
+    <div className="h-full grid grid-cols-2 md:grid-cols-4 gap-3 content-start">
       {stats.map((m, i) => {
         const val = last[m.key] as number | null;
         const startVal = first[m.key] as number | null;
+        const prevVal = person.previous ? (person.previous[m.key] as number | null) : null;
         const dStart = delta(val, startVal);
+        const dRecent = delta(val, prevVal);
         return (
-          <div key={m.key} className={`glass rounded-2xl p-4 relative overflow-hidden anim-fade d${i + 1}`}>
-            <div className="accent-strip" style={{ background: color, height: 2 }} />
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{m.icon} {m.label}</div>
-            <div className="font-mono text-2xl font-black text-white">
-              {fmt(val, 1)}<span className="text-xs font-normal text-slate-500 ml-1">{m.unit}</span>
+          <div key={m.key} className={`panel p-4 relative overflow-hidden anim-fade d${i + 1}`}>
+            <div
+              className="absolute top-0 left-0 right-0 h-0.5"
+              style={{ background: color, opacity: 0.6 }}
+            />
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="label">
+                {m.icon} {m.label}
+              </span>
             </div>
-            {dStart != null && dStart !== 0 && (
-              <div className="text-[10px] font-mono mt-1 font-bold" style={{ color: deltaColor(dStart, m.lower) }}>
-                {dStart > 0 ? '+' : ''}{dStart.toFixed(1)} de la start
-              </div>
-            )}
+            <div className="font-display text-3xl font-bold text-fg leading-none">
+              {fmt(val, 1)}
+              <span className="font-sans text-sm font-normal text-fg-muted ml-1">{m.unit}</span>
+            </div>
+            <div className="space-y-0.5 mt-2.5">
+              {dRecent != null && dRecent !== 0 && (
+                <div className="text-[10px] font-mono tabular-nums" style={{ color: deltaColor(dRecent, m.lower) }}>
+                  <span className="text-fg-faint mr-1">ultim</span>
+                  {dRecent > 0 ? '+' : ''}
+                  {dRecent.toFixed(1)}
+                </div>
+              )}
+              {dStart != null && dStart !== 0 && (
+                <div className="text-[10px] font-mono tabular-nums" style={{ color: deltaColor(dStart, m.lower) }}>
+                  <span className="text-fg-faint mr-1">start</span>
+                  {dStart > 0 ? '+' : ''}
+                  {dStart.toFixed(1)}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
@@ -184,33 +291,39 @@ function OverviewTab({ person, color }: { person: any; color: string }) {
   );
 }
 
-function IstoricTab({ person }: { person: any }) {
+function IstoricTab({ person }: { person: Person }) {
   return (
-    <div className="h-full glass rounded-2xl p-3 flex flex-col anim-fade">
-      <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 shrink-0">
-        📋 Istoric ({person.entries.length})
+    <div className="h-full panel p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-3 shrink-0">
+        <span className="label">📋 Istoric complet · {person.entries.length} măsurători</span>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[var(--bg)]">
-            <tr className="text-[9px] uppercase tracking-widest text-slate-500 font-black">
-              <th className="text-left py-2">Data</th>
-              <th className="text-right py-2">Kg</th>
-              <th className="text-right py-2">BF%</th>
-              <th className="text-right py-2">Talie</th>
-              <th className="text-right py-2">Muscle</th>
+          <thead className="sticky top-0 bg-card z-10 border-b border-border">
+            <tr>
+              <th className="label text-left py-2 pr-2">Data</th>
+              <th className="label text-right py-2 px-2">Kg</th>
+              <th className="label text-right py-2 px-2">BF%</th>
+              <th className="label text-right py-2 px-2">Talie</th>
+              <th className="label text-right py-2 px-2">Muscle</th>
+              <th className="label text-right py-2 pl-2">Water</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
-            {[...person.entries].reverse().map((e: any, i: number) => (
-              <tr key={i} className="border-t border-white/[0.04]">
-                <td className="py-2 text-slate-300 text-[11px]">
-                  {new Date(e.date).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: '2-digit' })}
+          <tbody className="font-mono tabular-nums">
+            {[...person.entries].reverse().map((e, i) => (
+              <tr key={i} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+                <td className="py-2 pr-2 text-fg-dim font-sans text-[11px]">
+                  {new Date(e.date).toLocaleDateString('ro-RO', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: '2-digit',
+                  })}
                 </td>
-                <td className="text-right py-2">{fmt(e.kg)}</td>
-                <td className="text-right py-2">{fmt(e.bodyFat)}</td>
-                <td className="text-right py-2">{fmt(e.talie)}</td>
-                <td className="text-right py-2">{fmt(e.muscle)}</td>
+                <td className="text-right py-2 px-2 text-fg">{fmt(e.kg)}</td>
+                <td className="text-right py-2 px-2 text-fg">{fmt(e.bodyFat)}</td>
+                <td className="text-right py-2 px-2 text-fg">{fmt(e.talie)}</td>
+                <td className="text-right py-2 px-2 text-fg">{fmt(e.muscle)}</td>
+                <td className="text-right py-2 pl-2 text-fg">{fmt(e.water)}</td>
               </tr>
             ))}
           </tbody>
@@ -222,7 +335,13 @@ function IstoricTab({ person }: { person: any }) {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-slate-400">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="h-full flex items-center justify-center text-fg-dim font-display italic">
+          Citesc...
+        </div>
+      }
+    >
       <ProfileInner />
     </Suspense>
   );

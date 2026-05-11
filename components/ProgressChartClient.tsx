@@ -4,42 +4,56 @@ import { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Person, MetricKey, densifyTimeSeries } from '@/lib/shape';
 
+const METRICS_META: Record<string, { label: string; unit: string; color: string }> = {
+  kg: { label: 'Greutate', unit: 'kg', color: 'var(--bronze)' },
+  bodyFat: { label: 'Body Fat', unit: '%', color: 'var(--rose)' },
+  talie: { label: 'Talie', unit: 'cm', color: 'var(--cyan)' },
+  muscle: { label: 'Muscle', unit: '%', color: 'var(--emerald)' },
+};
+
 export default function ProgressChartClient({ person, color }: { person: Person; color: string }) {
   const [metric, setMetric] = useState<MetricKey>('kg');
-  const meta: Record<string, { label: string; unit: string; color: string }> = {
-    kg: { label: 'Greutate', unit: 'kg', color },
-    bodyFat: { label: 'Body Fat %', unit: '%', color: '#ff3b3b' },
-    talie: { label: 'Talie', unit: 'cm', color: '#22d3ee' },
-    muscle: { label: 'Masă musculară', unit: '%', color: '#00ff88' },
-  };
+  const meta = { ...METRICS_META[metric], color: metric === 'kg' ? color : METRICS_META[metric].color };
 
   const raw = person.entries
     .filter((e) => e[metric] != null)
     .map((e) => ({ date: e.date as string, val: e[metric] as number }));
   const data = useMemo(() => densifyTimeSeries(raw), [JSON.stringify(raw)]);
-  const m = meta[metric];
 
   return (
-    <div className="h-full glass rounded-2xl p-4 flex flex-col anim-fade">
+    <div className="h-full panel p-4 flex flex-col">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2 shrink-0">
-        <h3 className="font-black text-sm">📈 Progres — {m.label}</h3>
+        <div>
+          <div className="label">📈 Progres în timp</div>
+          <div className="font-display text-base font-bold mt-0.5">{meta.label}</div>
+        </div>
         <div className="flex gap-1 flex-wrap">
-          {(['kg', 'bodyFat', 'talie', 'muscle'] as MetricKey[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => setMetric(k)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all`}
-              style={metric === k ? { background: `${meta[k].color}20`, color: meta[k].color } : { background: 'rgba(255,255,255,0.03)', color: '#94a3b8' }}
-            >
-              {meta[k].label}
-            </button>
-          ))}
+          {(['kg', 'bodyFat', 'talie', 'muscle'] as MetricKey[]).map((k) => {
+            const m = METRICS_META[k];
+            const active = metric === k;
+            return (
+              <button
+                key={k}
+                onClick={() => setMetric(k)}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all"
+                style={
+                  active
+                    ? { background: `${m.color}22`, color: m.color, boxShadow: `inset 0 0 0 1px ${m.color}44` }
+                    : { background: 'var(--card)', color: 'var(--fg-muted)', border: '1px solid var(--border)' }
+                }
+              >
+                {m.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {data.length < 2 ? (
-        <div className="flex-1 min-h-0 flex items-center justify-center">
-          <p className="text-[11px] text-slate-500">Ai nevoie de minim 2 check-in-uri pentru trend.</p>
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center">
+          <p className="font-display italic text-fg-muted text-sm">
+            Ai nevoie de minim 2 check-in-uri pentru trend.
+          </p>
         </div>
       ) : (
         <div className="flex-1 min-h-0">
@@ -47,38 +61,41 @@ export default function ProgressChartClient({ person, color }: { person: Person;
             <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <defs>
                 <linearGradient id={`g-${metric}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={m.color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={m.color} stopOpacity={0} />
+                  <stop offset="5%" stopColor={meta.color} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={meta.color} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
+                tick={{ fill: 'var(--fg-muted)', fontSize: 10, fontWeight: 600 }}
                 interval="preserveStartEnd"
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
+                tick={{ fill: 'var(--fg-muted)', fontSize: 10, fontWeight: 600 }}
                 domain={['auto', 'auto']}
-                width={30}
+                width={32}
               />
               <Tooltip
                 contentStyle={{
-                  background: 'rgba(15,23,42,0.95)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '12px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
                   fontSize: '11px',
+                  padding: '8px 12px',
+                  boxShadow: 'var(--shadow-panel-lifted)',
                 }}
-                labelStyle={{ color: '#94a3b8', fontWeight: 700 }}
-                formatter={(v: any) => [`${Number(v).toFixed(1)} ${m.unit}`, m.label]}
+                labelStyle={{ color: 'var(--fg-muted)', fontWeight: 600, marginBottom: 4 }}
+                itemStyle={{ color: 'var(--fg)' }}
+                formatter={(v: any) => [`${Number(v).toFixed(1)} ${meta.unit}`, meta.label]}
               />
               <Area
                 type="monotone"
                 dataKey="val"
-                stroke={m.color}
+                stroke={meta.color}
                 strokeWidth={2.5}
                 fill={`url(#g-${metric})`}
                 dot={(props: any) => {
@@ -90,13 +107,13 @@ export default function ProgressChartClient({ person, color }: { person: Person;
                       cx={props.cx}
                       cy={props.cy}
                       r={4}
-                      fill={m.color}
-                      stroke="#0f172a"
+                      fill={meta.color}
+                      stroke="var(--bg)"
                       strokeWidth={2}
                     />
                   );
                 }}
-                activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6, stroke: 'var(--bg)', strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>

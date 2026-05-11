@@ -19,7 +19,19 @@
       "Bash(where npx:*)",
       "Bash(where node:*)",
       "Bash(git branch *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Read(//c/AI_Projects/sleep-tracker-v2/**)",
+      "Read(//c/AI_Projects/SleepTracker/**)",
+      "Bash(ls C:/AI_Projects/sleep-tracker-v2/.env.local 2>&1; ls C:/AI_Projects/SleepTracker/.env 2>&1; ls C:/AI_Projects/SleepTracker/.env.local 2>&1; ls C:/AI_Projects/Health_Tracker/ 2>&1 | head -20)",
+      "Bash(vercel --version)",
+      "Bash(npx vercel *)",
+      "Bash(vercel whoami *)",
+      "Bash(vercel env *)",
+      "Bash(vercel --prod --yes)",
+      "Bash(curl -s -X POST https://shapesquad.vercel.app/api/chat -H \"Content-Type: application/json\" -H \"x-shapesquad-user: SmokeTest\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Salut! Cum stă echipa cu antrenamentele? Roast Petrica un pic.\"}],\"people\":[{\"name\":\"Petrica\",\"gender\":\"M\",\"entries\":[1,2,3,4,5,6,7,8],\"latest\":{\"kg\":75,\"bodyFat\":18.5,\"date\":\"2026-05-08\"},\"first\":{\"kg\":78,\"bodyFat\":21,\"date\":\"2025-08-20\"}},{\"name\":\"Adina\",\"gender\":\"F\",\"entries\":[1,2,3,4,5,6,7],\"latest\":{\"kg\":55.6,\"bodyFat\":23.4,\"date\":\"2026-04-22\"},\"first\":{\"kg\":56,\"bodyFat\":25.1,\"date\":\"2025-08-20\"}}]}')",
+      "Bash(curl -s -X POST https://shapesquad.vercel.app/api/chat -H \"Content-Type: application/json\" -H \"x-shapesquad-user: SmokeTest\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"cum cumpăr bitcoin?\"}],\"people\":[]}')",
+      "Bash(Get-ChildItem -Path \"C:\\\\AI_Projects\\\\sleep-tracker-v2\" -Recurse -Name)",
+      "Bash(Select-Object -First 30)"
     ]
   }
 }
