@@ -427,6 +427,62 @@ export function getPersonInsight(p: Person): { text: string; emoji: string; tone
   return { text: 'Colectează mai multe date pentru analiza trendului.', emoji: '📌', tone: 'neutral' };
 }
 
+// ── Simple XP System (RPG-style, no penalties) ────────
+// XP per log = score × 10  (60-100 per log, based on quality)
+// Total XP = entries × current_score × 10  (logs × quality)
+// Level: every 100 XP = level up (linear, simple, RPG-style)
+// You NEVER lose XP. No streak penalty, no decay. Skip a week? No problem.
+
+export interface LevelTier { name: string; icon: string; color: string; minLevel: number; }
+export const LEVEL_TIERS: LevelTier[] = [
+  { name: 'Rookie', icon: '🌱', color: '#94a3b8', minLevel: 1 },
+  { name: 'Regular', icon: '💪', color: '#3b82f6', minLevel: 5 },
+  { name: 'Pro', icon: '🔥', color: '#f97316', minLevel: 10 },
+  { name: 'Veteran', icon: '🏆', color: '#a855f7', minLevel: 20 },
+  { name: 'Legend', icon: '👑', color: '#ffd700', minLevel: 50 },
+];
+
+export interface XPInfo {
+  total: number;          // total XP accumulated
+  level: number;          // current level (1+)
+  xpInLevel: number;      // XP within current level (0-99)
+  xpToNext: number;       // XP needed to reach next level
+  perLog: number;         // XP awarded per log at current quality
+  tier: LevelTier;        // tier label
+  nextTier: LevelTier | null;  // next tier the user is climbing toward
+}
+
+export function getLevelTier(level: number): LevelTier {
+  let t = LEVEL_TIERS[0];
+  for (const tier of LEVEL_TIERS) if (level >= tier.minLevel) t = tier;
+  return t;
+}
+
+export function getNextLevelTier(level: number): LevelTier | null {
+  for (const tier of LEVEL_TIERS) if (level < tier.minLevel) return tier;
+  return null;
+}
+
+export function calcXP(p: Person, maxEntries: number): XPInfo {
+  const score = calcOverallScore(p, maxEntries);
+  // XP per log = score × 10 (60-100 per log)
+  const perLog = Math.round(score.total * 10);
+  // Total = logs × quality (rewards both frequency AND quality)
+  const total = p.entries.length * perLog;
+  const level = Math.floor(total / 100) + 1;
+  const xpInLevel = total % 100;
+  const xpToNext = 100 - xpInLevel;
+  return {
+    total,
+    level,
+    xpInLevel,
+    xpToNext,
+    perLog,
+    tier: getLevelTier(level),
+    nextTier: getNextLevelTier(level),
+  };
+}
+
 // ── Streak (kept for fun — not XP) ────────────────────
 export interface StreakInfo {
   current: number;

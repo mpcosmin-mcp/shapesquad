@@ -51,7 +51,10 @@ export default function InputPage({ people, onSubmitted }: Props) {
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="glass rounded-[var(--r-lg)] p-6">
-        <h2 className="font-black text-lg mb-4">📝 Log Measurement</h2>
+        <h2 className="font-black text-lg mb-1">📝 Log Measurement</h2>
+        <p className="text-[10px] text-slate-500 font-medium mb-4">
+          💡 Poți alege orice dată din trecut — log retroactiv permis ✅
+        </p>
         <div className="mb-4">
           <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Name</label>
           {!newName ? (
@@ -73,8 +76,11 @@ export default function InputPage({ people, onSubmitted }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Date</label>
+            <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">
+              Date <span className="text-slate-600 font-medium normal-case tracking-normal">(retroactiv OK)</span>
+            </label>
             <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
               className={inp} style={{ color: 'var(--text)' }} />
           </div>
           <div>

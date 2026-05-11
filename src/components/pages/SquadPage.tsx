@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Heart, Award } from 'lucide-react';
-import { Person, PERSON_COLORS, calcStreak, getLikeCount, hasLiked, getPersonInsight } from '../../lib/shape';
+import { Person, PERSON_COLORS, calcStreak, getLikeCount, hasLiked, getPersonInsight, calcXP } from '../../lib/shape';
 import { getAdjective } from '../../App';
 
 interface Props {
@@ -147,6 +147,7 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
 
   // ── Sorted alphabetically — everyone is equal ──
   const sorted = useMemo(() => [...people].sort((a, b) => a.name.localeCompare(b.name)), [people]);
+  const maxEntries = useMemo(() => Math.max(1, ...people.map(p => p.entries.length)), [people]);
 
   return (
     <div className="space-y-6">
@@ -223,6 +224,7 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
             const adj = getAdjective(p.name, allPeople);
             const dots = activityDots(p);
             const streak = calcStreak(p);
+            const xp = calcXP(p, maxEntries);
             const likeCount = getLikeCount(likes, p.name);
             const iLiked = activePerson ? hasLiked(likes, activePerson, p.name) : false;
             const insight = getPersonInsight(p);
@@ -273,8 +275,11 @@ export default function SquadPage({ people, allPeople, gender, onSelectPerson, l
                   )}
                 </div>
 
-                {/* ── Chips: streak, check-ins, months, deltas ── */}
+                {/* ── Chips: lvl, streak, check-ins, months, deltas ── */}
                 <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                  <span className="chip text-[9px] font-black" style={{ background: `${xp.tier.color}18`, color: xp.tier.color, border: `1px solid ${xp.tier.color}30` }}>
+                    {xp.tier.icon} LVL {xp.level}
+                  </span>
                   {streak.current > 0 && <span className="streak-badge">🔥 {streak.current}</span>}
                   <span className="chip text-[9px] bg-white/5 text-slate-500">
                     {p.entries.length} check-in{p.entries.length !== 1 ? '-uri' : ''}

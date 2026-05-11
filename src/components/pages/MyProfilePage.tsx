@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Person, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries, calcStreak, getLikeCount } from '../../lib/shape';
+import { Person, MetricKey, delta, deltaColor, fmt, PERSON_COLORS, getPersonInsight, densifyTimeSeries, calcStreak, getLikeCount, calcXP } from '../../lib/shape';
 import { CrosshairCursor, FloatingTooltip, TimeframeBar as TFBar, monthTicks } from '../ChartCrosshair';
 import { getAdjective } from '../../App';
 import { Heart, ChevronDown, ChevronUp } from 'lucide-react';
@@ -61,6 +61,8 @@ export default function MyProfilePage({ person: p, people, onSelect, likes }: Pr
 
   const streak = calcStreak(p);
   const likeCount = getLikeCount(likes, p.name);
+  const maxEntries = Math.max(1, ...people.map(pp => pp.entries.length));
+  const xp = calcXP(p, maxEntries);
 
   // Core 3 metrics — what matters at a glance
   const coreStats = [
@@ -102,6 +104,42 @@ export default function MyProfilePage({ person: p, people, onSelect, likes }: Pr
                   <Heart className="w-3 h-3 inline" fill="currentColor" /> {likeCount} {likeCount === 1 ? 'like' : 'likes'}
                 </span>
               )}
+            </div>
+
+            {/* ── LVL bar — RPG-style progression ── */}
+            <div className="mt-3 rounded-xl px-3 py-2.5" style={{
+              background: `linear-gradient(135deg, ${xp.tier.color}10, rgba(255,255,255,0.02))`,
+              border: `1px solid ${xp.tier.color}25`,
+            }}>
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">LVL</span>
+                  <span className="font-mono font-black text-2xl leading-none" style={{ color: xp.tier.color }}>{xp.level}</span>
+                  <span className="chip text-[9px] font-black ml-1" style={{ background: `${xp.tier.color}20`, color: xp.tier.color }}>
+                    {xp.tier.icon} {xp.tier.name}
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] font-bold text-slate-400 shrink-0">
+                  {xp.total} XP
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${xp.xpInLevel}%`,
+                  background: `linear-gradient(90deg, ${xp.tier.color}, ${xp.tier.color}cc)`,
+                  boxShadow: `0 0 8px ${xp.tier.color}66`,
+                }} />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[9px] font-mono text-slate-500">
+                  {xp.xpInLevel}/100 XP · +{xp.perLog}/log
+                </span>
+                {xp.nextTier && (
+                  <span className="text-[9px] font-mono text-slate-500">
+                    next: {xp.nextTier.icon} LVL {xp.nextTier.minLevel}
+                  </span>
+                )}
+              </div>
             </div>
             {/* AI Insight */}
             {(() => {
