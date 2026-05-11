@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, Send, Sparkles, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { useShapeData } from '@/lib/useShapeData';
+import { useActiveUser } from '@/lib/useActiveUser';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -17,16 +18,16 @@ interface Props {
 
 const SUGGESTIONS = [
   '🔥 Cine a progresat cel mai mult?',
-  '😏 Roast Petrica un pic',
+  '😏 Roast pe cineva la întâmplare',
   '⚡ Cum stă echipa pe streak?',
   '💪 Sfat: cum scap de 2kg?',
 ];
 
-const ACTIVE_USER_KEY = 'shapesquad_active_user';
 const LIMIT = 10;
 
 export default function ChatPanel({ open, onClose, isLarge }: Props) {
   const { people } = useShapeData();
+  const { activeUser } = useActiveUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +39,7 @@ export default function ChatPanel({ open, onClose, isLarge }: Props) {
   // Fetch initial rate status when panel opens
   useEffect(() => {
     if (!open) return;
-    const user = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_USER_KEY) || 'anon' : 'anon';
+    const user = activeUser || 'anon';
     fetch('/api/chat', { headers: { 'x-shapesquad-user': user } })
       .then((r) => r.json())
       .then((data) => {
@@ -48,7 +49,7 @@ export default function ChatPanel({ open, onClose, isLarge }: Props) {
       .catch(() => {});
     // Auto-focus input
     setTimeout(() => inputRef.current?.focus(), 120);
-  }, [open]);
+  }, [open, activeUser]);
 
   // Esc closes
   useEffect(() => {
@@ -65,8 +66,6 @@ export default function ChatPanel({ open, onClose, isLarge }: Props) {
   }, [messages, loading]);
 
   const exhausted = remaining <= 0;
-  const activeUser =
-    typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_USER_KEY) || '' : '';
 
   async function send(text: string) {
     if (exhausted || loading) return;
@@ -145,10 +144,10 @@ export default function ChatPanel({ open, onClose, isLarge }: Props) {
             </div>
             <div className="min-w-0">
               <div className="font-display font-bold text-sm leading-tight text-fg truncate">
-                Coach Petrache
+                Squad AI
               </div>
               <div className="text-[10px] text-fg-muted leading-tight">
-                {activeUser ? `pt. ${activeUser}` : 'AI · Haiku 4.5'}
+                {activeUser ? `pt. ${activeUser} · Haiku 4.5` : 'AI Coach · Haiku 4.5'}
               </div>
             </div>
           </div>
@@ -180,8 +179,8 @@ export default function ChatPanel({ open, onClose, isLarge }: Props) {
           {messages.length === 0 && (
             <div className="space-y-3 anim-fade">
               <p className="text-[12px] text-fg-dim leading-relaxed">
-                Sunt Coach Petrache. Citesc datele echipei, observ pattern-uri și răspund cu umor.
-                Roast pe Petrica e standard 😏
+                Sunt Squad AI. Citesc datele echipei, observ pattern-uri și răspund cu umor.
+                Roast pe oricine — toată lumea încasează 😏
               </p>
               <div className="space-y-1.5">
                 <p className="label">Încearcă</p>

@@ -292,10 +292,18 @@ function OverviewTab({ person, color }: { person: Person; color: string }) {
 }
 
 function IstoricTab({ person }: { person: Person }) {
+  // Chronological order
+  const entries = person.entries;
+  // Reverse for display (newest first)
+  const displayEntries = [...entries].reverse();
+
   return (
     <div className="h-full panel p-4 flex flex-col">
       <div className="flex items-center justify-between mb-3 shrink-0">
-        <span className="label">📋 Istoric complet · {person.entries.length} măsurători</span>
+        <span className="label">📋 Istoric · {person.entries.length} măsurători</span>
+        <span className="text-[9px] text-fg-muted">
+          🟢 progres · 🔴 regres · vs. măsurătoarea anterioară
+        </span>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
         <table className="w-full text-xs">
@@ -310,26 +318,61 @@ function IstoricTab({ person }: { person: Person }) {
             </tr>
           </thead>
           <tbody className="font-mono tabular-nums">
-            {[...person.entries].reverse().map((e, i) => (
-              <tr key={i} className="border-b border-border/50 hover:bg-card-hover transition-colors">
-                <td className="py-2 pr-2 text-fg-dim font-sans text-[11px]">
-                  {new Date(e.date).toLocaleDateString('ro-RO', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: '2-digit',
-                  })}
-                </td>
-                <td className="text-right py-2 px-2 text-fg">{fmt(e.kg)}</td>
-                <td className="text-right py-2 px-2 text-fg">{fmt(e.bodyFat)}</td>
-                <td className="text-right py-2 px-2 text-fg">{fmt(e.talie)}</td>
-                <td className="text-right py-2 px-2 text-fg">{fmt(e.muscle)}</td>
-                <td className="text-right py-2 pl-2 text-fg">{fmt(e.water)}</td>
-              </tr>
-            ))}
+            {displayEntries.map((e, i) => {
+              // chronoIdx in original array (oldest=0, newest=length-1)
+              const chronoIdx = entries.length - 1 - i;
+              const prev = chronoIdx > 0 ? entries[chronoIdx - 1] : null;
+              return (
+                <tr key={i} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+                  <td className="py-2 pr-2 text-fg-dim font-sans text-[11px]">
+                    {new Date(e.date).toLocaleDateString('ro-RO', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: '2-digit',
+                    })}
+                  </td>
+                  <ValCell value={e.kg} prev={prev?.kg} lower={false} />
+                  <ValCell value={e.bodyFat} prev={prev?.bodyFat} lower={true} />
+                  <ValCell value={e.talie} prev={prev?.talie} lower={true} />
+                  <ValCell value={e.muscle} prev={prev?.muscle} lower={false} />
+                  <ValCell value={e.water} prev={prev?.water} lower={false} />
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function ValCell({
+  value,
+  prev,
+  lower,
+}: {
+  value: number | null;
+  prev: number | null | undefined;
+  lower: boolean;
+}) {
+  const d = delta(value, prev ?? null);
+  let color = 'var(--fg)';
+  if (d != null && d !== 0) {
+    const isGood = lower ? d < 0 : d > 0;
+    color = isGood ? 'var(--emerald)' : 'var(--rose)';
+  }
+  return (
+    <td className="text-right py-2 px-2" style={{ color }}>
+      <div className="leading-tight">
+        <div>{fmt(value)}</div>
+        {d != null && d !== 0 && (
+          <div className="text-[9px] font-bold opacity-80">
+            {d > 0 ? '+' : ''}
+            {d.toFixed(1)}
+          </div>
+        )}
+      </div>
+    </td>
   );
 }
 
