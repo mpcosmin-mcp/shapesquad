@@ -36,7 +36,10 @@ function ProfileInner() {
             return (
               <button
                 key={person.name}
-                onClick={() => router.push(`/profile?name=${encodeURIComponent(person.name)}`)}
+                onClick={() => {
+                  try { localStorage.setItem('shapesquad_active_user', person.name); } catch {}
+                  router.push(`/profile?name=${encodeURIComponent(person.name)}`);
+                }}
                 className="glass p-4 rounded-2xl text-left trading-card relative overflow-hidden"
               >
                 <div className="accent-strip" style={{ background: color }} />
