@@ -79,11 +79,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* ═══ TOP NAV ═══ */}
       <header className="shrink-0 px-4 sm:px-5 py-3 flex items-center justify-between gap-2 relative z-20">
         <Link href="/" className="flex items-baseline gap-0.5 group shrink-0">
-          <span className="font-display text-xl sm:text-2xl font-black tracking-tight text-fg leading-none">
-            Shape
+          <span className="text-lg sm:text-xl font-semibold tracking-tight text-fg leading-none">
+            shape
           </span>
-          <span className="font-display text-xl sm:text-2xl font-black italic tracking-tight text-bronze leading-none">
-            Squad
+          <span className="text-lg sm:text-xl font-semibold tracking-tight text-fg-muted leading-none">
+            squad
           </span>
         </Link>
 
@@ -100,13 +100,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="flex items-center gap-1.5">
-          {/* ═══ Squad AI — prominent ═══ */}
+          {/* ═══ Squad AI — refined accent button ═══ */}
           <button
             onClick={() => setChatOpen((v) => !v)}
-            className={`group flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 h-9 px-3 rounded-md text-xs font-medium transition-all border ${
               chatOpen
-                ? 'bg-gradient-to-r from-bronze to-rose text-white shadow-glow-bronze'
-                : 'bg-gradient-to-r from-bronze/15 to-cyan/15 text-fg border border-bronze/30 hover:border-bronze hover:shadow-glow-bronze'
+                ? 'bg-fg text-bg border-transparent'
+                : 'bg-card border-border text-fg hover:border-border-strong hover:bg-card-hover'
             }`}
             aria-label="Squad AI Coach"
           >
@@ -120,29 +120,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-1.5 h-9 pl-1 pr-2 rounded-full bg-card border border-border hover:border-border-strong transition-all"
+              className="flex items-center gap-1.5 h-9 pl-1 pr-2 rounded-md bg-card border border-border hover:border-border-strong transition-all"
             >
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-display font-black text-white"
-                style={{ background: `linear-gradient(135deg, ${myColor}, ${myColor}cc)` }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                style={{ background: myColor }}
               >
                 {activeUser[0]}
               </div>
-              <span className="hidden sm:inline font-display font-bold text-[11px] text-fg">
-                {activeUser}
-              </span>
+              <span className="hidden sm:inline text-xs font-medium text-fg">{activeUser}</span>
               <ChevronDown className="w-3 h-3 text-fg-muted" />
             </button>
 
             {menuOpen && (
-              <div className="absolute top-full right-0 mt-1.5 w-56 panel panel-lifted p-1 z-30 anim-scale">
-                <div className="px-3 py-2 border-b border-border">
-                  <div className="text-[9px] font-bold text-fg-muted uppercase tracking-wider">
+              <div className="absolute top-full right-0 mt-1.5 w-56 card card-lifted p-1 z-30 anim-scale">
+                <div className="px-3 py-2 border-b border-[var(--border)]">
+                  <div className="text-[9px] font-semibold text-fg-muted uppercase tracking-wider">
                     Logat ca
                   </div>
-                  <div className="font-display font-bold text-sm text-fg">{activeUser}</div>
+                  <div className="text-sm font-medium text-fg">{activeUser}</div>
                   {isAdmin && (
-                    <div className="text-[9px] text-amber font-mono mt-0.5">⚡ admin</div>
+                    <div className="text-[9px] text-warn font-mono mt-0.5">⚡ admin</div>
                   )}
                 </div>
                 <button
@@ -150,7 +148,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     setMenuOpen(false);
                     router.push(`/profile?name=${encodeURIComponent(activeUser)}`);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-card-hover rounded-md font-medium flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-[var(--card-hover)] rounded-md font-medium flex items-center gap-2"
                 >
                   <span>👤 Profilul meu</span>
                 </button>
@@ -159,7 +157,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     setMenuOpen(false);
                     setActiveUser('');
                   }}
-                  className="w-full text-left px-3 py-2 text-xs text-fg-muted hover:text-fg hover:bg-card-hover rounded-md font-medium flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 text-xs text-fg-muted hover:text-fg hover:bg-[var(--card-hover)] rounded-md font-medium flex items-center gap-2"
                 >
                   <LogOut className="w-3 h-3" /> Schimbă profil
                 </button>

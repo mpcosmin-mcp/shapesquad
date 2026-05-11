@@ -1,55 +1,41 @@
 'use client';
 
 /**
- * MetricCard — Sleep-tracker pattern
+ * MetricCard — Vercel/Stripe/Apple Health minimalist pattern.
  *
- * Each card shows ONE metric for ONE user:
- *  - Big number (current value)
- *  - Delta vs first (start) and vs previous
- *  - SVG area chart absolutely positioned as background
- *  - Tiny dot strip below showing recent history
- *  - Border + accent tinted by direction (emerald=good, rose=bad)
+ *   ┌──────────────────────────────┐
+ *   │ LABEL              [↓ -1.2]  │  ← uppercase muted label + delta pill
+ *   │                              │
+ *   │ 79.1 kg                      │  ← huge number, neutral color
+ *   │                              │
+ *   │ ─────────────╱──╲───────╲───  │  ← thin sparkline (2px, no fill)
+ *   │ start 80.0 · 8 logs          │  ← muted footer
+ *   └──────────────────────────────┘
  *
- * No Recharts here — pure SVG keeps it ultra-light.
+ * Cards are WHITE on light / dark zinc on dark. No tinted backgrounds.
+ * The only color: semantic delta + sparkline accent.
  */
 
 interface SeriesPoint {
-  iso: string; // YYYY-MM-DD
+  iso: string;
   val: number;
 }
 
 export interface MetricCardProps {
   label: string;
-  icon: string;
   unit: string;
   series: SeriesPoint[]; // chronological, oldest first
   lowerIsBetter?: boolean;
-  size?: 'sm' | 'md' | 'lg';
-}
-
-function classifyDirection(
-  startDelta: number | null,
-  lower: boolean
-): 'good' | 'bad' | 'neutral' {
-  if (startDelta == null || Math.abs(startDelta) < 0.15) return 'neutral';
-  return (lower ? startDelta < 0 : startDelta > 0) ? 'good' : 'bad';
-}
-
-function colorOf(direction: 'good' | 'bad' | 'neutral'): string {
-  return direction === 'good'
-    ? 'var(--emerald)'
-    : direction === 'bad'
-    ? 'var(--rose)'
-    : 'var(--cyan)';
+  /** When true, use neutral gray for sparkline (no green/red). */
+  monochrome?: boolean;
 }
 
 export default function MetricCard({
   label,
-  icon,
   unit,
   series,
   lowerIsBetter = false,
-  size = 'md',
+  monochrome = false,
 }: MetricCardProps) {
   const hasData = series.length > 0;
   const latest = hasData ? series[series.length - 1].val : null;
@@ -58,25 +44,32 @@ export default function MetricCard({
 
   const startDelta = first != null && latest != null ? latest - first : null;
   const recentDelta = previous != null && latest != null ? latest - previous : null;
-  const direction = classifyDirection(startDelta, lowerIsBetter);
-  const color = colorOf(direction);
-  const arrow =
-    startDelta == null
-      ? '·'
-      : Math.abs(startDelta) < 0.15
-      ? '→'
-      : (lowerIsBetter ? startDelta < 0 : startDelta > 0)
-      ? '↘'
-      : '↗';
-  const arrowFlipped =
-    !lowerIsBetter && startDelta != null && startDelta > 0 ? '↗' : arrow;
 
-  // Build SVG path for area chart (background)
-  const chartW = 400;
-  const chartH = 100;
-  const padY = 8;
-  let areaPath = '';
+  // Determine semantic color
+  const direction: 'good' | 'bad' | 'neutral' =
+    startDelta == null || Math.abs(startDelta) < 0.15
+      ? 'neutral'
+      : (lowerIsBetter ? startDelta < 0 : startDelta > 0)
+      ? 'good'
+      : 'bad';
+
+  const sparkColor = monochrome
+    ? 'var(--fg-faint)'
+    : direction === 'good'
+    ? 'var(--good)'
+    : direction === 'bad'
+    ? 'var(--bad)'
+    : 'var(--fg-faint)';
+
+  const deltaClass =
+    direction === 'good' ? 'delta delta-good' : direction === 'bad' ? 'delta delta-bad' : 'delta delta-neutral';
+
+  // Sparkline: pure 2px stroke, no fill
+  const chartW = 200;
+  const chartH = 40;
+  const padY = 6;
   let linePath = '';
+  let lastDot: { x: number; y: number } | null = null;
   if (series.length >= 2) {
     const values = series.map((s) => s.val);
     const min = Math.min(...values);
@@ -87,136 +80,92 @@ export default function MetricCard({
       const y = chartH - padY - ((s.val - min) / range) * (chartH - padY * 2);
       return { x, y };
     });
-    linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    areaPath =
-      linePath +
-      ` L ${chartW} ${chartH} L 0 ${chartH} Z`;
+    // Smooth path via simple line segments (chosen for clarity over curve)
+    linePath = pts
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+      .join(' ');
+    lastDot = pts[pts.length - 1];
   }
 
-  // History dots (last 10)
-  const histDots = series.slice(-10);
-  let histMin = 0;
-  let histMax = 1;
-  if (histDots.length >= 2) {
-    const vals = histDots.map((d) => d.val);
-    histMin = Math.min(...vals);
-    histMax = Math.max(...vals);
-  }
-  const histRange = Math.max(histMax - histMin, 0.01);
-
-  const numClass =
-    size === 'lg'
-      ? 'text-5xl md:text-6xl'
-      : size === 'sm'
-      ? 'text-2xl'
-      : 'text-3xl md:text-4xl';
-  const padClass = size === 'lg' ? 'p-4' : size === 'sm' ? 'p-3' : 'p-3.5';
+  const arrow =
+    startDelta == null || Math.abs(startDelta) < 0.15
+      ? '→'
+      : (lowerIsBetter ? startDelta < 0 : startDelta > 0)
+      ? '↓'
+      : '↑';
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border ${padClass} flex flex-col justify-between min-h-[140px] transition-all`}
-      style={{
-        background: hasData
-          ? `linear-gradient(180deg, color-mix(in srgb, ${color} 6%, var(--card)), var(--card) 70%)`
-          : 'var(--card)',
-        borderColor: hasData
-          ? `color-mix(in srgb, ${color} 24%, var(--border))`
-          : 'var(--border)',
-        boxShadow: 'var(--shadow-panel)',
-      }}
-    >
-      {/* ═══ BACKGROUND CHART ═══ */}
-      {areaPath && (
-        <svg
-          viewBox={`0 0 ${chartW} ${chartH}`}
-          preserveAspectRatio="none"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          aria-hidden
-        >
-          <defs>
-            <linearGradient id={`grad-${label}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.28} />
-              <stop offset="65%" stopColor={color} stopOpacity={0.08} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <path d={areaPath} fill={`url(#grad-${label})`} />
-          <path d={linePath} stroke={color} strokeWidth={1.5} fill="none" opacity={0.55} />
-        </svg>
-      )}
-
-      {/* ═══ FOREGROUND CONTENT ═══ */}
-      <div className="relative flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm leading-none">{icon}</span>
-          <span className="label">{label}</span>
-        </div>
-        {hasData && (
-          <span
-            className="font-mono text-[11px] font-bold tabular-nums"
-            style={{ color }}
-          >
-            {arrowFlipped}{' '}
-            {startDelta != null && Math.abs(startDelta) >= 0.05
-              ? `${startDelta > 0 ? '+' : ''}${startDelta.toFixed(1)}`
-              : ''}
+    <div className="card p-4 flex flex-col">
+      {/* Header: label + delta */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="label">{label}</span>
+        {recentDelta != null && Math.abs(recentDelta) >= 0.05 ? (
+          <span className={deltaClass}>
+            <span aria-hidden>{recentDelta < 0 ? '↓' : '↑'}</span>
+            {recentDelta > 0 ? '+' : ''}
+            {recentDelta.toFixed(1)}
           </span>
+        ) : startDelta != null && Math.abs(startDelta) >= 0.15 ? (
+          <span className={deltaClass}>
+            <span aria-hidden>{arrow}</span>
+            {startDelta > 0 ? '+' : ''}
+            {startDelta.toFixed(1)}
+          </span>
+        ) : (
+          <span className="delta delta-neutral">—</span>
         )}
       </div>
 
-      <div className="relative flex items-baseline gap-1.5 my-2">
+      {/* Value */}
+      <div className="flex items-baseline gap-1.5 mb-3">
         <span
-          className={`font-display font-bold ${numClass} leading-none tabular-nums`}
+          className="num font-semibold text-3xl leading-none"
           style={{ color: hasData ? 'var(--fg)' : 'var(--fg-faint)' }}
         >
           {latest != null ? latest.toFixed(1) : '—'}
         </span>
-        <span className="text-[11px] text-fg-muted font-mono">{unit}</span>
-        {recentDelta != null && Math.abs(recentDelta) >= 0.1 && (
-          <span
-            className="ml-auto font-mono text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded"
-            style={{
-              color,
-              background: `color-mix(in srgb, ${color} 16%, transparent)`,
-            }}
+        <span className="text-xs text-fg-muted font-medium">{unit}</span>
+      </div>
+
+      {/* Sparkline */}
+      <div className="h-10 -mx-1 mb-2">
+        {linePath ? (
+          <svg
+            viewBox={`0 0 ${chartW} ${chartH}`}
+            preserveAspectRatio="none"
+            className="w-full h-full"
+            aria-hidden
           >
-            {recentDelta > 0 ? '+' : ''}
-            {recentDelta.toFixed(1)}
-          </span>
-        )}
-      </div>
-
-      {/* ═══ HISTORY DOTS ═══ */}
-      <div className="relative flex items-end gap-[3px] h-5">
-        {histDots.length >= 2 ? (
-          histDots.map((d, i) => {
-            const h = 4 + ((d.val - histMin) / histRange) * 16;
-            const isLast = i === histDots.length - 1;
-            return (
-              <div
-                key={d.iso}
-                className="flex-1 rounded-sm"
-                style={{
-                  height: `${h}px`,
-                  background: isLast ? color : `color-mix(in srgb, ${color} 35%, transparent)`,
-                  minWidth: 3,
-                }}
-                title={`${d.iso}: ${d.val.toFixed(1)}${unit}`}
+            <path
+              d={linePath}
+              stroke={sparkColor}
+              strokeWidth={2}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            {lastDot && (
+              <circle
+                cx={lastDot.x}
+                cy={lastDot.y}
+                r={2.5}
+                fill={sparkColor}
+                vectorEffect="non-scaling-stroke"
               />
-            );
-          })
+            )}
+          </svg>
         ) : (
-          <span className="text-[9px] text-fg-faint italic">
-            {hasData ? '1 măsurătoare' : 'nu există date'}
-          </span>
+          <div className="h-full flex items-center text-[10px] text-fg-faint">
+            {hasData ? 'Are nevoie de 2+ logs' : 'fără date'}
+          </div>
         )}
       </div>
 
+      {/* Footer */}
       {hasData && (
-        <div className="relative text-[9px] text-fg-faint mt-1 font-mono tabular-nums flex justify-between">
-          <span>
-            start: {first?.toFixed(1)} {unit}
-          </span>
+        <div className="flex items-center justify-between text-[10px] text-fg-muted font-mono tabular-nums">
+          <span>start {first?.toFixed(1)}</span>
           <span>
             {series.length} log{series.length !== 1 ? 's' : ''}
           </span>

@@ -56,34 +56,19 @@ const SYSTEM_PROMPT = `Ești "Squad AI" — coach-ul digital al echipei ShapeSqu
 
 Acum, dă-le ce au nevoie. Cu stil. 🫡`;
 
-// Topics that are OFF-LIMITS (server-side soft check; the AI also enforces it)
-const OFF_TOPIC_PATTERNS = [
-  /\b(crypto|bitcoin|ethereum|nft|trading|forex|stocks?|bursa|acțiuni)\b/i,
-  /\b(politică|alegeri|guvern|psd|pnl|usr|partid)\b/i,
-  /\b(tvâ|tva|impozit|anaf|fiscal|contabil)\b/i,
-  /\b(razboi|război|ucraina|rusia|gaza)\b/i,
-  /\b(porno|sexual|nud[ae]?|cum să fac sex)\b/i,
-];
-
-const FITNESS_KEYWORDS = [
-  /\b(kg|kilograme|greutate|slăbe|îngrașă|gras|slab|gros|subțire)\b/i,
-  /\b(bf|body ?fat|grăsime|masă|muscle|muscul|talie|piept|biceps|fes|abs)\b/i,
-  /\b(sală|gym|antrenament|reps|sets|cardio|alergat|alergare|înot|bicicletă)\b/i,
-  /\b(mâncare|mancare|nutriție|nutritie|proteine|carbohidrați|calorii|dietă|dieta)\b/i,
-  /\b(somn|dormit|odihnă|odihna|sleep|recovery)\b/i,
-  /\b(progres|trend|xp|lvl|level|streak|leaderboard|ranking)\b/i,
-  /\b(petrica|adina|gaby|cata|clara|bogdan|lavinia|cristi|stefi|varamea|echipa|squad)\b/i,
-  /\b(motivat|disciplin|consist|obiectiv|target|goal)\b/i,
-  /\b(coach|petrache|shapesquad|ai|chatbot|bot|hello|salut|hei|hai|cum|ce|cine|de ce|când|unde)\b/i,
+// Hard blacklist — explicitly off-topic subjects we refuse without calling AI.
+// Everything else is allowed: the AI itself enforces scope via system prompt.
+// This avoids over-blocking legitimate roast/joke/squad questions.
+const HARD_BLACKLIST = [
+  /\b(crypto|bitcoin|ethereum|nft|forex|stocks?|bursa|acțiuni)\b/i,
+  /\b(alegeri|guvern|psd|pnl|usr|partid)\b/i,
+  /\b(tva|anaf|impozit|fiscal|contabil)\b/i,
+  /\b(război|ucraina|rusia|gaza)\b/i,
+  /\b(porno|nud[ae]?|cum să fac sex)\b/i,
 ];
 
 function isLikelyOffTopic(text: string): boolean {
-  // If we hit an obviously banned topic, refuse
-  if (OFF_TOPIC_PATTERNS.some((re) => re.test(text))) return true;
-  // If text has zero fitness/squad keywords AND is long enough to judge, refuse
-  if (text.length < 8) return false; // too short — let AI handle (might be "hi", "cine?", etc)
-  const hasFitness = FITNESS_KEYWORDS.some((re) => re.test(text));
-  return !hasFitness;
+  return HARD_BLACKLIST.some((re) => re.test(text));
 }
 
 // ─── RATE LIMITING (per-IP, daily) ────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { Flame, Sparkles, Users, ArrowRight, Heart, Zap } from 'lucide-react';
+import { Flame, ArrowRight, Heart, Zap } from 'lucide-react';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
 import {
@@ -16,6 +16,7 @@ import {
   Entry,
 } from '@/lib/shape';
 import MetricCard from '@/components/MetricCard';
+import MeasurementsTable from '@/components/MeasurementsTable';
 
 interface MetricDef {
   key: MetricKey;
@@ -23,23 +24,22 @@ interface MetricDef {
   icon: string;
   unit: string;
   lowerIsBetter: boolean;
-  optional?: boolean; // body measurements — show only if data exists
 }
 
 const CORE_METRICS: MetricDef[] = [
-  { key: 'kg', label: 'Greutate', icon: '⚖️', unit: 'kg', lowerIsBetter: false },
-  { key: 'bodyFat', label: 'Body Fat', icon: '🔥', unit: '%', lowerIsBetter: true },
+  { key: 'kg', label: 'Weight', icon: '⚖️', unit: 'kg', lowerIsBetter: false },
+  { key: 'bodyFat', label: 'Body fat', icon: '🔥', unit: '%', lowerIsBetter: true },
   { key: 'visceralFat', label: 'Visceral', icon: '🫀', unit: '', lowerIsBetter: true },
   { key: 'muscle', label: 'Muscle', icon: '💪', unit: '%', lowerIsBetter: false },
   { key: 'water', label: 'Water', icon: '💧', unit: '%', lowerIsBetter: false },
 ];
 
-const BODY_METRICS: MetricDef[] = [
-  { key: 'talie', label: 'Talie', icon: '📏', unit: 'cm', lowerIsBetter: true, optional: true },
-  { key: 'biceps', label: 'Biceps', icon: '💪', unit: 'cm', lowerIsBetter: false, optional: true },
-  { key: 'piept', label: 'Piept', icon: '🫁', unit: 'cm', lowerIsBetter: false, optional: true },
-  { key: 'spate', label: 'Spate', icon: '🔙', unit: 'cm', lowerIsBetter: false, optional: true },
-  { key: 'fesieri', label: 'Fesieri', icon: '🍑', unit: 'cm', lowerIsBetter: false, optional: true },
+const BODY_MEASUREMENTS: MetricDef[] = [
+  { key: 'talie', label: 'Talie', icon: '📏', unit: 'cm', lowerIsBetter: true },
+  { key: 'piept', label: 'Piept', icon: '🫁', unit: 'cm', lowerIsBetter: false },
+  { key: 'biceps', label: 'Biceps', icon: '💪', unit: 'cm', lowerIsBetter: false },
+  { key: 'spate', label: 'Spate', icon: '🔙', unit: 'cm', lowerIsBetter: false },
+  { key: 'fesieri', label: 'Fesieri', icon: '🍑', unit: 'cm', lowerIsBetter: false },
 ];
 
 function buildSeries(entries: Entry[], key: MetricKey) {
@@ -58,20 +58,26 @@ export default function OverviewPage() {
   const likes = typeof window !== 'undefined' ? getLikes() : {};
   const myLikes = me ? getLikeCount(likes, me.name) : 0;
 
-  // Top 3 squad sneak peek
-  const top3 = useMemo(() => {
-    return people
-      .map((p) => ({ p, xp: calcXP(p, maxEntries) }))
-      .sort((a, b) => b.xp.total - a.xp.total)
-      .slice(0, 3);
-  }, [people, maxEntries]);
+  // Squad rank for me
+  const sortedByXP = useMemo(
+    () =>
+      people
+        .map((p) => ({ p, xp: calcXP(p, maxEntries) }))
+        .sort((a, b) => b.xp.total - a.xp.total),
+    [people, maxEntries]
+  );
+  const myRank = useMemo(
+    () => sortedByXP.findIndex((s) => s.p.name === activeUser) + 1,
+    [sortedByXP, activeUser]
+  );
+  const top3 = sortedByXP.slice(0, 3);
 
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center anim-fade">
-          <Zap className="w-12 h-12 text-bronze mx-auto mb-4 anim-pulse" strokeWidth={2.5} fill="currentColor" />
-          <p className="font-display text-base italic text-fg-dim">Citesc echipa...</p>
+          <Zap className="w-10 h-10 text-fg-muted mx-auto mb-3 anim-pulse" strokeWidth={2} />
+          <p className="text-sm text-fg-muted">Loading...</p>
         </div>
       </div>
     );
@@ -79,8 +85,8 @@ export default function OverviewPage() {
 
   if (!me) {
     return (
-      <div className="h-full flex items-center justify-center text-fg-muted">
-        Nu există date pentru "{activeUser}" încă.
+      <div className="h-full flex items-center justify-center text-fg-muted text-sm">
+        Nu există date pentru "{activeUser}".
       </div>
     );
   }
@@ -90,191 +96,168 @@ export default function OverviewPage() {
   const xp = calcXP(me, maxEntries);
   const streak = calcStreak(me);
   const insight = getPersonInsight(me);
-
-  // Filter body metrics — show only those user actually tracks
-  const visibleBodyMetrics = BODY_METRICS.filter((m) =>
+  const visibleMeasurements = BODY_MEASUREMENTS.filter((m) =>
     me.entries.some((e) => e[m.key] != null)
   );
 
   return (
     <div className="h-full overflow-y-auto -mr-2 pr-2 pb-2">
-      <div className="space-y-3">
-        {/* ═══ HERO ═══ */}
-        <div
-          className="panel panel-lifted p-4 anim-fade relative overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, color-mix(in srgb, ${color} 10%, var(--card)), var(--card) 55%)`,
-            borderColor: `color-mix(in srgb, ${color} 28%, var(--border))`,
-          }}
-        >
+      <div className="space-y-4 max-w-7xl">
+        {/* ═══ COMPACT HEADER STRIP ═══ */}
+        <div className="card p-4 flex items-center gap-4 anim-fade">
           <div
-            className="absolute -right-12 -top-12 w-44 h-44 rounded-full opacity-[0.1]"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold text-white shrink-0"
             style={{ background: color }}
-          />
-          <div className="flex items-center gap-4 relative">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black text-white shrink-0 shadow-panel"
-              style={{ background: `linear-gradient(135deg, ${color}, ${color}aa)` }}
-            >
-              {me.name[0]}
+          >
+            {me.name[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-lg font-semibold text-fg leading-tight">{me.name}</h1>
+              <span className="text-xs text-fg-muted">
+                {me.entries.length} măsurători
+              </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="label mb-1">👋 Salut</div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-fg leading-none">
-                {me.name}
-              </h1>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="chip" style={{ background: `${xp.tier.color}22`, color: xp.tier.color }}>
-                  {xp.tier.icon} LVL {xp.level} · {xp.total} XP
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span
+                className="chip"
+                style={{
+                  background: `color-mix(in srgb, ${xp.tier.color} 14%, transparent)`,
+                  color: xp.tier.color,
+                }}
+              >
+                {xp.tier.icon} LVL {xp.level}
+              </span>
+              {streak.current > 0 && (
+                <span className="streak-badge">
+                  <Flame className="w-2.5 h-2.5" /> {streak.current} luni
                 </span>
-                {streak.current > 0 && (
-                  <span className="streak-badge">
-                    <Flame className="w-3 h-3" /> {streak.current} luni
-                  </span>
-                )}
-                {myLikes > 0 && (
-                  <span className="text-[10px] text-rose flex items-center gap-1">
-                    <Heart className="w-3 h-3" fill="currentColor" /> {myLikes}
-                  </span>
-                )}
-                <span className="text-[10px] text-fg-muted">
-                  {me.entries.length} măsurători
+              )}
+              {myLikes > 0 && (
+                <span className="text-[10px] text-bad flex items-center gap-1 font-semibold">
+                  <Heart className="w-2.5 h-2.5" fill="currentColor" /> {myLikes}
                 </span>
-              </div>
-            </div>
-
-            {/* XP bar */}
-            <div className="hidden md:flex flex-col items-end gap-1 shrink-0 w-40">
-              <div className="progress-track w-full">
-                <div
-                  className="progress-fill"
-                  style={{
-                    width: `${xp.xpInLevel}%`,
-                    background: `linear-gradient(90deg, ${xp.tier.color}, ${xp.tier.color}cc, ${xp.tier.color})`,
-                    boxShadow: `0 0 12px ${xp.tier.color}66`,
-                  }}
-                />
-              </div>
-              <div className="text-[9px] font-mono text-fg-muted tabular-nums">
-                {xp.xpInLevel}/100 · +{xp.perLog}/log
-              </div>
+              )}
+              {myRank > 0 && (
+                <span className="text-[10px] text-fg-muted font-mono">
+                  rank #{myRank} din {people.length}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Insight banner */}
-          <div
-            className="mt-3 rounded-lg px-3 py-2 text-[11px] font-medium leading-relaxed relative"
-            style={{
-              background:
-                insight.tone === 'good'
-                  ? 'color-mix(in srgb, var(--emerald) 8%, transparent)'
-                  : insight.tone === 'warn'
-                  ? 'color-mix(in srgb, var(--amber) 8%, transparent)'
-                  : 'color-mix(in srgb, var(--fg-muted) 6%, transparent)',
-              border: `1px solid ${
-                insight.tone === 'good'
-                  ? 'color-mix(in srgb, var(--emerald) 20%, transparent)'
-                  : insight.tone === 'warn'
-                  ? 'color-mix(in srgb, var(--amber) 20%, transparent)'
-                  : 'var(--border)'
-              }`,
-              color:
-                insight.tone === 'good'
-                  ? 'var(--emerald)'
-                  : insight.tone === 'warn'
-                  ? 'var(--amber)'
-                  : 'var(--fg-dim)',
-            }}
-          >
-            {insight.emoji} {insight.text}
+          {/* XP bar (compact, right side) */}
+          <div className="hidden md:flex flex-col gap-1 w-44 shrink-0">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-fg-muted">XP</span>
+              <span className="num text-xs font-semibold tabular-nums">
+                {xp.total}
+              </span>
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${xp.xpInLevel}%`,
+                  background: xp.tier.color,
+                }}
+              />
+            </div>
+            <span className="text-[9px] font-mono text-fg-faint tabular-nums">
+              {xp.xpInLevel}/100 · +{xp.perLog}/log
+            </span>
           </div>
         </div>
 
-        {/* ═══ CORE METRIC MODULES ═══ */}
-        <div>
-          <div className="flex items-center justify-between mb-2 anim-fade d1">
-            <h2 className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-bronze" strokeWidth={2.5} />
-              <span className="font-display text-base font-bold">Body composition</span>
-            </h2>
-            <span className="label">5 metrici</span>
+        {/* ═══ INSIGHT ═══ */}
+        <div
+          className="text-xs text-fg-dim font-medium px-1 anim-fade d1"
+        >
+          {insight.emoji} {insight.text}
+        </div>
+
+        {/* ═══ CORE METRICS ═══ */}
+        <div className="anim-fade d2">
+          <div className="flex items-baseline justify-between mb-2">
+            <h2 className="label">Body composition</h2>
+            <span className="text-[10px] text-fg-faint">{CORE_METRICS.length} metrici</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            {CORE_METRICS.map((m, i) => (
-              <div key={m.key} className={`anim-fade d${i + 1}`}>
-                <MetricCard
-                  label={m.label}
-                  icon={m.icon}
-                  unit={m.unit}
-                  series={buildSeries(me.entries, m.key)}
-                  lowerIsBetter={m.lowerIsBetter}
-                />
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {CORE_METRICS.map((m) => (
+              <MetricCard
+                key={m.key}
+                label={m.label}
+                unit={m.unit}
+                series={buildSeries(me.entries, m.key)}
+                lowerIsBetter={m.lowerIsBetter}
+              />
             ))}
           </div>
         </div>
 
-        {/* ═══ BODY MEASUREMENTS (only what user logs) ═══ */}
-        {visibleBodyMetrics.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2 anim-fade d3">
-              <h2 className="flex items-center gap-2">
-                <span className="text-sm">📐</span>
-                <span className="font-display text-base font-bold">Măsurători (cm)</span>
-              </h2>
-              <span className="label">{visibleBodyMetrics.length} active</span>
+        {/* ═══ BODY MEASUREMENTS (compact table) ═══ */}
+        {visibleMeasurements.length > 0 && (
+          <div className="anim-fade d3">
+            <div className="flex items-baseline justify-between mb-2">
+              <h2 className="label">Măsurători (cm)</h2>
+              <span className="text-[10px] text-fg-faint">
+                {visibleMeasurements.length} active
+              </span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {visibleBodyMetrics.map((m, i) => (
-                <div key={m.key} className={`anim-fade d${i + 1}`}>
-                  <MetricCard
-                    label={m.label}
-                    icon={m.icon}
-                    unit={m.unit}
-                    series={buildSeries(me.entries, m.key)}
-                    lowerIsBetter={m.lowerIsBetter}
-                  />
-                </div>
-              ))}
-            </div>
+            <MeasurementsTable entries={me.entries} defs={visibleMeasurements} />
           </div>
         )}
 
-        {/* ═══ SQUAD PEEK ═══ */}
+        {/* ═══ SQUAD PODIUM (compact list) ═══ */}
         <div className="anim-fade d4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-cyan" strokeWidth={2.5} />
-              <span className="font-display text-base font-bold">Squad podium</span>
-            </h2>
-            <Link href="/squad" className="text-[11px] text-bronze hover:underline flex items-center gap-1 font-semibold">
+          <div className="flex items-baseline justify-between mb-2">
+            <h2 className="label">Top squad</h2>
+            <Link
+              href="/squad"
+              className="text-[11px] text-fg-muted hover:text-fg flex items-center gap-1 font-medium"
+            >
               vezi toți <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="card divide-y divide-[var(--border)]">
             {top3.map(({ p, xp: theirXp }, i) => {
               const pci = people.indexOf(p);
               const pcolor = PERSON_COLORS[pci % PERSON_COLORS.length];
-              const medal = ['🥇', '🥈', '🥉'][i];
+              const isMe = p.name === activeUser;
               return (
                 <Link
                   key={p.name}
                   href={`/profile?name=${encodeURIComponent(p.name)}`}
-                  className="panel panel-interactive p-3 flex items-center gap-2.5 relative overflow-hidden"
+                  className="px-4 py-2.5 flex items-center gap-3 hover:bg-[var(--card-hover)] transition-colors"
                 >
-                  <span className="text-lg shrink-0">{medal}</span>
+                  <span className="w-5 text-center text-xs">
+                    {['🥇', '🥈', '🥉'][i]}
+                  </span>
                   <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-display font-black text-white shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${pcolor}, ${pcolor}aa)` }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0"
+                    style={{ background: pcolor }}
                   >
                     {p.name[0]}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-display font-bold text-xs text-fg truncate">{p.name}</div>
-                    <div className="font-mono text-[10px] tabular-nums" style={{ color: theirXp.tier.color }}>
-                      {theirXp.total} XP
-                    </div>
-                  </div>
+                  <span className="flex-1 text-sm font-medium text-fg truncate">
+                    {p.name}
+                    {isMe && <span className="ml-1.5 text-[10px] text-fg-muted">· tu</span>}
+                  </span>
+                  <span
+                    className="chip shrink-0"
+                    style={{
+                      background: `color-mix(in srgb, ${theirXp.tier.color} 12%, transparent)`,
+                      color: theirXp.tier.color,
+                    }}
+                  >
+                    {theirXp.tier.icon} L{theirXp.level}
+                  </span>
+                  <span className="num text-sm font-semibold tabular-nums text-fg-dim w-12 text-right shrink-0">
+                    {theirXp.total}
+                  </span>
+                  <span className="text-[9px] text-fg-faint font-mono uppercase shrink-0 hidden sm:inline">
+                    XP
+                  </span>
                 </Link>
               );
             })}
