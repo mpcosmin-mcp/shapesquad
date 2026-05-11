@@ -27,22 +27,43 @@ export interface Person {
 // ── API ────────────────────────────────────────────────
 export const API = 'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
 
+/**
+ * Fetch all measurement data via our own /api/data server route.
+ * The route does server-side fetch of Apps Script (no JSONP/CORS issues,
+ * no 8s artificial timeout) and caches at the edge for 60s.
+ *
+ * Returns DEMO_DATA only as a last resort if the server route is unreachable
+ * AND we have no useful response.
+ */
 export async function fetchAllData(): Promise<Entry[]> {
-  if (!API) return DEMO_DATA;
-  return new Promise((resolve) => {
-    const cb = `__ss_${Date.now()}`;
-    (window as any)[cb] = (data: any) => {
-      delete (window as any)[cb];
-      document.getElementById(cb)?.remove();
-      resolve(parseRows(data));
-    };
-    const s = document.createElement('script');
-    s.id = cb;
-    s.src = `${API}?callback=${cb}`;
-    s.onerror = () => resolve(DEMO_DATA);
-    document.body.appendChild(s);
-    setTimeout(() => { if ((window as any)[cb]) { delete (window as any)[cb]; resolve(DEMO_DATA); } }, 8000);
-  });
+  try {
+    const res = await fetch('/api/data', { cache: 'no-store' });
+    if (!res.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('[shapesquad] /api/data returned', res.status);
+      return DEMO_DATA;
+    }
+    const data = await res.json();
+    const rows = parseRows(data);
+    if (rows.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[shapesquad] /api/data returned 0 rows; falling back to DEMO_DATA');
+      return DEMO_DATA;
+    }
+    return rows;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[shapesquad] /api/data fetch threw; falling back to DEMO_DATA', e);
+    return DEMO_DATA;
+  }
+}
+
+/** True when the data shape looks identical to the local DEMO_DATA fallback. */
+export function isDemoData(entries: Entry[]): boolean {
+  if (entries.length !== DEMO_DATA.length) return false;
+  const names = new Set(entries.map((e) => e.name));
+  if (names.size !== 2) return false;
+  return names.has('Adina') && names.has('Cosmin');
 }
 
 export async function submitEntry(entry: Record<string, any>): Promise<boolean> {

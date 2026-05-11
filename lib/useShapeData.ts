@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Entry, Person, fetchAllData, groupByPerson } from './shape';
+import { Entry, Person, fetchAllData, groupByPerson, isDemoData } from './shape';
 
 /**
  * Module-level cache shared across ALL hook instances + tabs.
@@ -16,7 +16,10 @@ import { Entry, Person, fetchAllData, groupByPerson } from './shape';
  * Cache TTL: 5 min in-memory, 24h localStorage fallback.
  */
 
-const LS_KEY = 'shapesquad_entries_v1';
+// v2 introduces /api/data server route + DEMO_DATA pollution guard.
+// Bump on any breaking change to the cached shape or fetch behavior.
+const LS_KEY = 'shapesquad_entries_v2';
+const OLD_LS_KEYS = ['shapesquad_entries_v1']; // legacy keys to clean
 const CACHE_TTL = 5 * 60 * 1000; // 5 min — refresh in background after this
 const LS_MAX_AGE = 24 * 60 * 60 * 1000; // 24h — discard cache older than this
 
@@ -49,9 +52,19 @@ function loadFromStorage(): CacheState | null {
 
 function saveToStorage(state: CacheState) {
   if (typeof window === 'undefined') return;
+  // Refuse to persist the DEMO_DATA fallback — that's how stale "Adina+Cosmin
+  // only" caches happen in the wild when the network is slow.
+  if (isDemoData(state.entries)) return;
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(state));
   } catch {}
+}
+
+function cleanLegacyStorage() {
+  if (typeof window === 'undefined') return;
+  for (const key of OLD_LS_KEYS) {
+    try { localStorage.removeItem(key); } catch {}
+  }
 }
 
 function isStale(): boolean {
@@ -82,7 +95,14 @@ function ensureFetch(force = false): Promise<Entry[]> {
 
 // Init: hydrate memory from localStorage on first import (runs once per page load)
 if (typeof window !== 'undefined' && !memoryCache) {
+  cleanLegacyStorage();
   memoryCache = loadFromStorage();
+  // Belt + suspenders: if a previous build cached demo data under the new key,
+  // throw it out so the next fetch refreshes.
+  if (memoryCache && isDemoData(memoryCache.entries)) {
+    memoryCache = null;
+    try { localStorage.removeItem(LS_KEY); } catch {}
+  }
 }
 
 interface ShapeData {
