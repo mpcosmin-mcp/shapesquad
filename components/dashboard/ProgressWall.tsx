@@ -44,9 +44,9 @@ export function ProgressWall({
     <Card className="px-4 sm:px-5 py-4">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
         <div>
-          <div className="label">Progres echipă · luna asta vs anterioară</div>
+          <div className="label">Pentru fun · cum stăm cu toții</div>
           <div className="text-[10px] num text-[var(--color-fg-faint)] mt-0.5">
-            fiecare card arată direcția proprie, nu o ierarhie
+            fiecare card e propria direcție · ne uităm unul la altul ca să râdem, nu să ne batem
           </div>
         </div>
       </div>
