@@ -16,9 +16,6 @@ updates:
           - "react*"
           - "react-dom"
           - "@types/react*"
-      anthropic:
-        patterns:
-          - "@anthropic-ai/*"
       tailwind:
         patterns:
           - "tailwind*"

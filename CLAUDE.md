@@ -4,11 +4,13 @@
 
 ## Project
 
-**ShapeSquad** — body composition tracker for a small team. Logs weight, body fat %, muscle mass, water, visceral fat, and body measurements (biceps, back, chest, waist, hips). Gamified with XP + tiers. Google Sheets backend, Anthropic-powered AI coach. Deployed on Vercel.
+**ShapeSquad** — body composition tracker for a small team. Logs weight, body fat %, muscle mass, water, visceral fat, and body measurements (biceps, back, chest, waist, hips). Gamified with XP + tiers. Google Sheets backend. Deployed on Vercel.
+
+> **No AI / Anthropic anymore.** The Squad AI chat coach was removed (2026-05-20) — runtime AI token cost = $0. Forum idea-farming is now a manual monthly review by the owner. If reintroducing AI later, re-add `@anthropic-ai/sdk` + a focused on-demand endpoint (don't auto-call per message).
 
 ## Stack
 
-Next.js 15 (App Router) · TypeScript · Tailwind 3 · Anthropic SDK · Google Sheets via Apps Script JSONP · Recharts (legacy — being phased out for inline SVG).
+Next.js 15 (App Router) · TypeScript · Tailwind 3 · Google Sheets via Apps Script JSONP · Recharts (legacy — being phased out for inline SVG).
 
 ## Design system — token-disciplined loading
 
