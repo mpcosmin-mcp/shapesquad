@@ -1,15 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-display',
-  weight: ['400', '500', '600', '700', '800', '900'],
-  style: ['normal', 'italic'],
-});
+import { SocialProvider } from '@/lib/social';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -26,22 +19,19 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ShapeSquad — 1% Daily',
+  title: 'ShapeSquad — body composition tracker',
   description: 'Team body composition tracker. Built for the squad.',
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#faf8f3' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: '#020617',
 };
 
-// Prevents flash of wrong theme on load
+// Prevent flash of wrong theme
 const NO_FLASH_SCRIPT = `
   (function() {
     try {
@@ -54,12 +44,18 @@ const NO_FLASH_SCRIPT = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ro" className={`${fraunces.variable} ${inter.variable} ${jetbrains.variable}`}>
+    <html
+      lang="ro"
+      className={`${inter.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
-      <body>
-        <AppShell>{children}</AppShell>
+      <body className="antialiased">
+        <SocialProvider>
+          <AppShell>{children}</AppShell>
+        </SocialProvider>
       </body>
     </html>
   );
