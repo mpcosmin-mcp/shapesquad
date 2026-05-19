@@ -229,6 +229,7 @@ export function MetricDetailDrawer({
                   targetLabel="target"
                   unit={spec.unit}
                   lowerBetter={spec.lowerBetter}
+                  colorByTarget
                 />
               </div>
 
