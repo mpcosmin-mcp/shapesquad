@@ -5,9 +5,11 @@ import type { Entry, MetricKey } from '@/lib/shape';
 import { personalDeltaColor } from '@/lib/shape';
 import { fmtDate } from '@/lib/utils';
 import { TeamChart } from '@/components/ui/TeamChart';
+import { LikeButton } from '@/components/ui/LikeButton';
+import { likeKey } from '@/lib/likes';
 
 /**
- * Metric Detail Drawer — health-tracker style deep-dive for ONE metric.
+ * Metric Detail Modal — health-tracker style deep-dive for ONE metric.
  *
  * Opens from PersonalMetrics when you tap a tile. Shows:
  *   • Headline: metric name + current value + Δ vs first
@@ -15,12 +17,8 @@ import { TeamChart } from '@/components/ui/TeamChart';
  *   • Big chart of the full history (single line, continuous)
  *   • Tabular history with row-by-row Δ vs prev
  *
- * Closes on:
- *   • Click outside (backdrop)
- *   • Escape key
- *   • X button
- *
- * Right-side drawer on desktop (~480px), full-screen on mobile.
+ * Closes on backdrop click, Escape key, or X button.
+ * Centered on screen, ~560px desktop / full-screen mobile.
  */
 export interface MetricSpec {
   key: MetricKey;
@@ -33,10 +31,12 @@ export interface MetricSpec {
 }
 
 export function MetricDetailDrawer({
-  spec, entries, onClose,
+  spec, entries, personName, viewer, onClose,
 }: {
   spec: MetricSpec | null;
   entries: Entry[];
+  personName: string;
+  viewer: string;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -88,20 +88,21 @@ export function MetricDetailDrawer({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] anim-fade-in"
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[3px] anim-fade-in"
         onClick={onClose}
         aria-hidden
       />
 
-      {/* Drawer */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Detalii ${spec.label}`}
-        className="fixed z-50 inset-0 sm:inset-y-0 sm:right-0 sm:left-auto sm:w-[480px] lg:w-[560px] bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl flex flex-col overflow-hidden anim-scale"
-      >
-        {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[var(--color-border)]"
+      {/* Centered modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 pointer-events-none">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detalii ${spec.label}`}
+          className="pointer-events-auto bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl shadow-black/60 flex flex-col overflow-hidden anim-scale w-full h-full sm:h-auto sm:max-h-[88vh] sm:w-[560px] lg:w-[640px] sm:rounded-2xl"
+        >
+          {/* Header */}
+          <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[var(--color-border)]"
           style={{ background: `linear-gradient(135deg, ${spec.color}10, transparent 70%)` }}
         >
           <div className="min-w-0">
@@ -125,13 +126,22 @@ export function MetricDetailDrawer({
               <div className="text-xs text-[var(--color-fg-muted)] italic mt-1">nicio măsurătoare</div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="tap rounded-lg flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
-            aria-label="Închide"
-          >
-            <X size={16} strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <LikeButton
+              targetKey={likeKey.metric(personName, spec.key)}
+              by={viewer}
+              size="md"
+              mode="pill"
+              label={`${personName} · ${spec.label}`}
+            />
+            <button
+              onClick={onClose}
+              className="tap rounded-lg flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
+              aria-label="Închide"
+            >
+              <X size={16} strokeWidth={2} />
+            </button>
+          </div>
         </div>
 
         {/* Scroll body */}
@@ -210,6 +220,7 @@ export function MetricDetailDrawer({
               Nicio măsurătoare pentru acest metric.
             </div>
           )}
+        </div>
         </div>
       </div>
     </>

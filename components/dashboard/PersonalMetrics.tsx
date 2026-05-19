@@ -5,6 +5,9 @@ import {
   bfColor, muscleColor, visceralColor, personalDeltaColor,
 } from '@/lib/shape';
 import { Sparkline } from '@/components/ui/Sparkline';
+import { LikeButton } from '@/components/ui/LikeButton';
+import { likeKey } from '@/lib/likes';
+import { useActiveUser } from '@/lib/useActiveUser';
 import { MetricDetailDrawer, type MetricSpec } from '@/components/dashboard/MetricDetailDrawer';
 
 /**
@@ -48,6 +51,7 @@ const MEASURE_SPECS_F: Spec[] = [
 ];
 
 export function PersonalMetrics({ person }: { person: Person }) {
+  const { activeUser } = useActiveUser();
   const sortedAsc = useMemo(
     () => [...person.entries].sort((a, b) => a.date.localeCompare(b.date)),
     [person.entries],
@@ -93,6 +97,8 @@ export function PersonalMetrics({ person }: { person: Person }) {
             <MiniTile
               key={t.key}
               tile={t}
+              personName={person.name}
+              viewer={activeUser}
               onOpen={() => setOpenSpec({
                 key: t.key as MetricKey,
                 label: t.label,
@@ -110,6 +116,8 @@ export function PersonalMetrics({ person }: { person: Person }) {
       <MetricDetailDrawer
         spec={openSpec}
         entries={person.entries}
+        personName={person.name}
+        viewer={activeUser}
         onClose={() => setOpenSpec(null)}
       />
     </>
@@ -171,13 +179,23 @@ function round(n: number, dec: number): number {
   return Math.round(n * f) / f;
 }
 
-function MiniTile({ tile, onOpen }: { tile: Tile; onOpen: () => void }) {
+function MiniTile({
+  tile, personName, viewer, onOpen,
+}: {
+  tile: Tile;
+  personName: string;
+  viewer: string;
+  onOpen: () => void;
+}) {
   return (
-    <button
-      onClick={onOpen}
-      className="text-left rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 flex flex-col gap-1.5 transition-all hover:border-[var(--color-border-strong)] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.4)] active:translate-y-0 cursor-pointer"
-      aria-label={`Deschide detalii ${tile.label}`}
+    <div
+      className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all hover:border-[var(--color-border-strong)] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.4)] active:translate-y-0"
     >
+      <button
+        onClick={onOpen}
+        className="text-left w-full px-3 py-2.5 flex flex-col gap-1.5 cursor-pointer rounded-xl"
+        aria-label={`Deschide detalii ${tile.label}`}
+      >
       <div className="flex items-baseline justify-between gap-1">
         <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate">
           {tile.label}
@@ -210,7 +228,16 @@ function MiniTile({ tile, onOpen }: { tile: Tile; onOpen: () => void }) {
         <DeltaLine label="start" delta={tile.deltaStart} unit={tile.unit} color={tile.deltaStartColor} dec={tile.decimals} />
         <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
       </div>
-    </button>
+      </button>
+      <div className="absolute top-1 right-1.5">
+        <LikeButton
+          targetKey={likeKey.metric(personName, tile.key)}
+          by={viewer}
+          size="sm"
+          label={`${personName} · ${tile.label}`}
+        />
+      </div>
+    </div>
   );
 }
 
