@@ -5,6 +5,7 @@ import {
   bfColor, muscleColor, visceralColor, personalDeltaColor,
 } from '@/lib/shape';
 import { Sparkline } from '@/components/ui/Sparkline';
+import { Avi } from '@/components/ui/Avi';
 import { LikeButton } from '@/components/ui/LikeButton';
 import { likeKey } from '@/lib/likes';
 import { useActiveUser } from '@/lib/useActiveUser';
@@ -50,8 +51,9 @@ const MEASURE_SPECS_F: Spec[] = [
   { key: 'fesieri', label: 'Fesieri', unit: 'cm', lowerBetter: false, decimals: 1, colorOf: () => '#fbbf24' },
 ];
 
-export function PersonalMetrics({ person }: { person: Person }) {
+export function PersonalMetrics({ person, accent }: { person: Person; accent: string }) {
   const { activeUser } = useActiveUser();
+  const firstName = person.name.split(/\s+/)[0];
   const sortedAsc = useMemo(
     () => [...person.entries].sort((a, b) => a.date.localeCompare(b.date)),
     [person.entries],
@@ -97,14 +99,32 @@ export function PersonalMetrics({ person }: { person: Person }) {
   return (
     <>
       <section className="card px-4 sm:px-5 py-4">
-        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
-          <div>
-            <div className="label">Progresul tău · click pentru detalii</div>
-            <div className="text-[10px] num text-[var(--color-fg-faint)] mt-0.5">
-              Δ start = de la prima măsurătoare · Δ prev = vs luna anterioară
+        {/* Active user — big & clear who you're viewing */}
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
+          <Avi name={person.name} color={accent} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight truncate" style={{ color: accent }}>
+                {firstName}
+              </h2>
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{ background: `${accent}22`, color: accent }}
+              >
+                activ
+              </span>
+            </div>
+            <div className="text-[11px] text-[var(--color-fg-muted)] num mt-0.5">
+              {sortedAsc.length} măsurători · progresul tău
             </div>
           </div>
-          <div className="text-[10px] num text-[var(--color-fg-faint)]">{sortedAsc.length} măsurători</div>
+        </div>
+
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
+          <div className="label">click pe un modul pentru detalii</div>
+          <div className="text-[10px] num text-[var(--color-fg-faint)]">
+            Δ start = prima măsurătoare · Δ prev = luna anterioară
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -204,9 +224,27 @@ function MiniTile({
   viewer: string;
   onOpen: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+
+  // One-line verdict for the hover preview.
+  const verdict = (() => {
+    if (tile.deltaPrev == null) return { text: 'prima lună cu date', color: 'var(--color-fg-muted)' };
+    const flat = Math.abs(tile.deltaPrev) < (tile.decimals === 0 ? 1 : 0.1);
+    if (flat) return { text: 'stabil față de luna trecută', color: 'var(--color-fg-muted)' };
+    const good = tile.lowerBetter ? tile.deltaPrev < 0 : tile.deltaPrev > 0;
+    return good
+      ? { text: 'în progres față de luna trecută', color: 'var(--color-good)' }
+      : { text: 'în regres față de luna trecută', color: 'var(--color-warn)' };
+  })();
+  const onTarget = (tile.target != null && tile.current != null)
+    ? (tile.lowerBetter ? tile.current <= tile.target : tile.current >= tile.target)
+    : null;
+
   return (
     <div
-      className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all hover:border-[var(--color-border-strong)] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.4)] active:translate-y-0"
+      className={`relative rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all hover:border-[var(--color-border-strong)] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.4)] active:translate-y-0 ${hovered ? 'z-30' : ''}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <button
         onClick={onOpen}
@@ -254,6 +292,32 @@ function MiniTile({
           label={`${personName} · ${tile.label}`}
         />
       </div>
+
+      {/* Hover preview — desktop peek: bigger chart + deltas + target + verdict */}
+      {hovered && (
+        <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-30 w-60 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl shadow-black/40 p-3 pointer-events-none fade-in-up">
+          <div className="flex items-baseline justify-between gap-2 mb-2">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate">{tile.label}</span>
+            <span className="num font-bold text-lg leading-none" style={{ color: tile.current == null ? 'var(--color-fg-faint)' : tile.color }}>
+              {tile.current == null ? '—' : tile.decimals === 0 ? Math.round(tile.current) : tile.current.toFixed(tile.decimals)}
+              <span className="text-[10px] text-[var(--color-fg-faint)] font-medium ml-0.5">{tile.unit}</span>
+            </span>
+          </div>
+          <Sparkline values={tile.series} dates={tile.dates} unit={tile.unit} color={tile.color} width={216} height={44} />
+          <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--color-border)]/60">
+            <DeltaLine label="start" delta={tile.deltaStart} unit={tile.unit} color={tile.deltaStartColor} dec={tile.decimals} />
+            <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
+          </div>
+          {onTarget != null && (
+            <div className="num text-[10px] font-bold mt-2" style={{ color: onTarget ? 'var(--color-good)' : 'var(--color-bad)' }}>
+              {onTarget ? '✓ peste target' : 'sub target'} ({tile.lowerBetter ? '≤' : '≥'} {tile.target}{tile.unit})
+            </div>
+          )}
+          <div className="text-[10px] mt-1.5 leading-snug" style={{ color: verdict.color }}>
+            {verdict.text}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

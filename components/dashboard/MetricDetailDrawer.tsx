@@ -181,7 +181,7 @@ export function MetricDetailDrawer({
 
         {/* Module switcher — jump straight to any metric */}
         {canNav && (
-          <div className="shrink-0 flex gap-1.5 px-4 sm:px-5 py-2 border-b border-[var(--color-border)] overflow-x-auto">
+          <div className="shrink-0 flex gap-1.5 px-4 sm:px-5 py-2 border-b border-[var(--color-border)] overflow-x-auto no-scrollbar">
             {specs!.map((s) => {
               const active = s.key === spec.key;
               return (

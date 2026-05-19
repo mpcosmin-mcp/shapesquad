@@ -318,6 +318,10 @@ html.light .glass {
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-fg-faint); }
 
+/* Hide scrollbar but keep scroll (horizontal strips: squad bar, pill rows) */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 ::selection { background: var(--color-accent); color: var(--color-bg); }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -1,5 +1,6 @@
 'use client';
 import { useMemo } from 'react';
+import { PERSON_COLORS } from '@/lib/shape';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
@@ -26,6 +27,10 @@ export default function Home() {
   const { activeUser } = useActiveUser();
 
   const me = useMemo(() => people.find((p) => p.name === activeUser), [people, activeUser]);
+  const meColor = useMemo(() => {
+    const idx = people.findIndex((p) => p.name === activeUser);
+    return PERSON_COLORS[(idx < 0 ? 0 : idx) % PERSON_COLORS.length];
+  }, [people, activeUser]);
   const allNames = useMemo(() => people.map((p) => p.name), [people]);
 
   if (loading) return <DashboardSkeleton />;
@@ -43,7 +48,7 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
       <div className="fade-in-up delay-0">
-        <PersonalMetrics person={me} />
+        <PersonalMetrics person={me} accent={meColor} />
       </div>
 
       <div className="fade-in-up delay-1">

@@ -53,7 +53,7 @@ export function SquadBar() {
   return (
     <div className="sticky top-14 z-20 bg-[var(--color-bg)]/85 backdrop-blur-md border-b border-[var(--color-border)]">
       <div className="max-w-6xl mx-auto w-full px-3 sm:px-5 py-2">
-        <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
           <span className="label shrink-0 mr-1">squad</span>
           {sorted.map(({ p, idx }) => (
             <UserChip
