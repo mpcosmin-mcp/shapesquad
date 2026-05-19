@@ -22,13 +22,15 @@ const METRIC_META: Record<Metric, { label: string; unit: string; target: number;
  *
  *   Header: title · range tabs (3 luni / 6 luni / tot)
  *   Metric tabs: kg / BF / muscle / visceral + target indicator
- *   Person filter chips: Toți + per persoană (radio-style)
+ *   Person filter chips: default = current user only (not comparative).
+ *     Click "Toți" to opt into the multi-line overlay.
  *   Big SVG chart with Bezier curves + hover crosshair + tooltip
  */
-export function TeamChartPane({ people }: { people: Person[] }) {
+export function TeamChartPane({ people, currentUser }: { people: Person[]; currentUser: string }) {
   const [range, setRange] = useState<Range>('6m');
   const [metric, setMetric] = useState<Metric>('bodyFat');
-  const [focusUser, setFocusUser] = useState<string | null>(null);
+  // Default: focus on the active user (no implicit cross-user comparison).
+  const [focusUser, setFocusUser] = useState<string | null>(currentUser);
 
   const allEntries = useMemo(() => people.flatMap((p) => p.entries), [people]);
 
