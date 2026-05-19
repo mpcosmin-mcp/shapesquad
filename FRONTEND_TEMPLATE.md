@@ -1,5 +1,7 @@
 # Frontend Template -- Premium Dark Dashboard
 
+> ⚠️ **TOKEN COST ~11K. Do NOT read whole-file.** Overlaps heavily with the `masterpiece-ui` skill + MASTERPIECE_GUIDE.md. Prefer the skill; `grep` this file for a specific pattern only if needed.
+
 > A reusable playbook extracted from ShapeSquad. Use these building blocks to ship a polished, mobile-first, dark-mode dashboard for **any domain** -- finance, psychology, habit tracking, personal analytics, etc.
 
 ---

@@ -10,11 +10,16 @@
 
 Next.js 15 (App Router) · TypeScript · Tailwind 3 · Anthropic SDK · Google Sheets via Apps Script JSONP · Recharts (legacy — being phased out for inline SVG).
 
-## The most important file in this repo right now
+## Design system — token-disciplined loading
 
-**[MASTERPIECE_GUIDE.md](./MASTERPIECE_GUIDE.md)** — the UI redesign brief.
+The masterpiece design language is the **global `masterpiece-ui` skill** (canonical, ~7K tokens, invoke it when doing UI work). Don't duplicate-load.
 
-If the user asks to "improve the design", "make it look like somn", "apply masterpiece UI", or any variation: **open MASTERPIECE_GUIDE.md and execute it section by section in the listed migration order**. The guide is self-contained — every CSS token, every component skeleton, every gotcha is inlined. You don't need to fetch anything from the somn project.
+`MASTERPIECE_GUIDE.md` (~11K tokens) + `FRONTEND_TEMPLATE.md` (~11K tokens) are **large project-specific references**. To save tokens:
+- **Never read them whole-file.** `grep` the specific section you need (e.g., `grep -n "ScoreCard\|chart\|tooltip" MASTERPIECE_GUIDE.md`), then read only that range.
+- For generic design tokens/components → use the `masterpiece-ui` skill (smaller, canonical).
+- For ShapeSquad-specific adaptations (Romanian copy, body-comp components, migration order) → grep the relevant section of MASTERPIECE_GUIDE.md.
+
+If asked to "apply masterpiece UI" / "improve design": invoke the `masterpiece-ui` skill first; consult the project guide by section only for ShapeSquad-specific deltas.
 
 ## How to work in this repo
 
@@ -40,8 +45,14 @@ If the user asks to "improve the design", "make it look like somn", "apply maste
 - `label` class for the small uppercase section headers.
 - Components: PascalCase named exports. Files: PascalCase for components, kebab-case for lib.
 
-## Don't ask, just do (after MASTERPIECE_GUIDE.md is followed)
+## Token discipline (read this)
 
-- Always commit incrementally (one section of the guide per commit, ideally).
+- **Grep before read.** Find the symbol/section, read only that range. Never whole-file the big guides (MASTERPIECE_GUIDE 11K, FRONTEND_TEMPLATE 11K, BLUEPRINT 5.7K).
+- **One source of truth for design:** the `masterpiece-ui` skill. The project guides are deltas/references, not required reads.
+- `/clear` between unrelated task batches to drop stale context.
+
+## Don't ask, just do
+
+- Always commit incrementally (one logical change per commit).
 - Push to `main` triggers Vercel auto-deploy. Don't push broken builds.
 - If the user says "make it look better" without specifics, default to the somn masterpiece direction unless the change has already been applied.

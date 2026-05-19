@@ -232,13 +232,24 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 600,
-      system: SYSTEM_PROMPT + dataContext + forumContext,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      // Prompt caching: on multi-turn conversations (same data within 5 min),
+      // turns 2+ hit the cache for this system block → ~10% input cost instead
+      // of 100%. The block (SYSTEM_PROMPT + team data + 12 forum threads) is
+      // large enough to clear the Haiku cache minimum.
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT + dataContext + forumContext,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      // Cap history to the last 12 turns — unbounded history re-sends the whole
+      // conversation every request, growing input tokens turn over turn.
+      messages: messages.slice(-12).map((m) => ({ role: m.role, content: m.content })),
     });
 
     const text = response.content
-      .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-      .map((b) => b.text)
+      .map((b) => (b.type === 'text' ? b.text : ''))
       .join('\n');
 
     return NextResponse.json({

@@ -1,5 +1,7 @@
 # ShapeSquad — Masterpiece UI Migration Guide
 
+> ⚠️ **TOKEN COST ~11K. Do NOT read whole-file.** Generic design system = global `masterpiece-ui` skill. This file = ShapeSquad-specific deltas only. `grep -n "<section>"` then read that range.
+
 > **For the next Claude / dev who opens this project:** redesign the ShapeSquad UI to match the somn masterpiece — Slate 950 + Indigo, no-scroll dashboard, glassmorphism login, chat-in-left-sidebar.
 >
 > This guide is **self-contained**. You don't need access to the somn codebase. All code patterns are inlined below — copy, adapt, ship.
