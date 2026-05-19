@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
-import { SocialProvider } from '@/lib/social';
+import { ForumProvider } from '@/lib/forum';
+import { LikesProvider } from '@/lib/likes';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -53,9 +54,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
       <body className="antialiased">
-        <SocialProvider>
-          <AppShell>{children}</AppShell>
-        </SocialProvider>
+        <LikesProvider>
+          <ForumProvider>
+            <AppShell>{children}</AppShell>
+          </ForumProvider>
+        </LikesProvider>
       </body>
     </html>
   );

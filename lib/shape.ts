@@ -851,6 +851,73 @@ export function personalTrendNote(p: Person): TrendNote | null {
   return null;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// PERSONAL TREND HELPERS — no cross-user comparison, just direction vs self.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Δ vs the previous entry; null if < 2 entries or the field is missing. */
+export function monthlyDelta(p: Person, key: MetricKey): number | null {
+  const sorted = [...p.entries].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return null;
+  const last = sorted[sorted.length - 1][key];
+  const prev = sorted[sorted.length - 2][key];
+  if (last == null || prev == null) return null;
+  return Math.round((last - prev) * 10) / 10;
+}
+
+export type ProgressStatus = 'progres' | 'stabil' | 'recalibrare';
+
+/** Per-row status: did THIS entry move in the right direction vs the one before? */
+export function rowProgressStatus(p: Person, entryIdx: number): ProgressStatus {
+  const sorted = [...p.entries].sort((a, b) => a.date.localeCompare(b.date));
+  if (entryIdx <= 0) return 'stabil';
+  const curr = sorted[entryIdx];
+  const prev = sorted[entryIdx - 1];
+  return compareEntries(curr, prev);
+}
+
+/** Most recent move direction for the person — used in header summaries. */
+export function progressStatus(p: Person): ProgressStatus {
+  const sorted = [...p.entries].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return 'stabil';
+  return compareEntries(sorted[sorted.length - 1], sorted[sorted.length - 2]);
+}
+
+function compareEntries(curr: Entry, prev: Entry): ProgressStatus {
+  let score = 0; // positive = better, negative = worse
+  if (curr.bodyFat != null && prev.bodyFat != null) {
+    const d = curr.bodyFat - prev.bodyFat;
+    if (d <= -0.3) score++;
+    else if (d >= 0.3) score--;
+  }
+  if (curr.muscle != null && prev.muscle != null) {
+    const d = curr.muscle - prev.muscle;
+    if (d >= 0.3) score++;
+    else if (d <= -0.3) score--;
+  }
+  if (curr.visceralFat != null && prev.visceralFat != null) {
+    const d = curr.visceralFat - prev.visceralFat;
+    if (d <= -1) score++;
+    else if (d >= 1) score--;
+  }
+  if (score > 0) return 'progres';
+  if (score < 0) return 'recalibrare';
+  return 'stabil';
+}
+
+/** Color a delta vs your own past — green for good direction, red otherwise. */
+export function personalDeltaColor(delta: number | null, lowerBetter: boolean): string {
+  if (delta == null) return '#52525b';
+  if (Math.abs(delta) < 0.15) return 'var(--color-fg-muted)';
+  const good = lowerBetter ? delta < 0 : delta > 0;
+  return good ? 'var(--color-good)' : 'var(--color-bad)';
+}
+
+/** True if the person logged any entry whose date is in YYYY-MM. */
+export function loggedInMonth(p: Person, monthKey: string): boolean {
+  return p.entries.some((e) => e.date.startsWith(monthKey));
+}
+
 // ── Demo Data ──────────────────────────────────────────
 const DEMO_DATA: Entry[] = [
   { name: 'Adina', date: '2025-08-20', kg: 56, bodyFat: 25.1, visceralFat: 6, muscle: null, water: null, gender: 'F', biceps: 26, spate: 82, piept: 88, talie: 70, fesieri: 96 },

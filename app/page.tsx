@@ -2,32 +2,34 @@
 import { useMemo } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
-import { KpiCards } from '@/components/dashboard/KpiCards';
-import { Leaderboard } from '@/components/dashboard/Leaderboard';
-import { TeamFeed } from '@/components/dashboard/TeamFeed';
+import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
+import { Forum } from '@/components/dashboard/Forum';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
 import { TeamChartPane } from '@/components/dashboard/TeamChartPane';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 /**
- * Single-page dashboard — Sleep Tracker v2 layout, ShapeSquad domain.
+ * Single-page dashboard — personal-first, unified mini-tile aesthetic.
  *
- *   1. KpiCards    — Greutate / Body Fat / Muscle / Visceral (giant numbers).
- *   2. Leaderboard — clasament + period tabs + badges + sparklines.
- *   3. TeamFeed    — luna asta / toate · likes + comments + replies.
- *   4. PersonalHistory — last 6 rows + status pills + trend note.
- *   5. TeamChartPane   — multi-metric chart with person filters.
+ *   1. PersonalMetrics — grid de mini-module pentru toate metricele
+ *                        (greutate, BF, muscle, visceral, apă +
+ *                        4 măsurători gender-aware). Click → modal detalii.
+ *   2. Forum           — thread-uri Reddit-style cu likes + comments + replies.
+ *   3. TeamChartPane   — chart multi-metric · default doar tu, "Toți" opt-in.
+ *   4. PersonalHistory — ultimele logs tabular + pills personal-trend.
  *
- * Only AI surface = floating Squad AI bubble in AppShell.
+ * KpiCards section was retired: its 4 metrics duplicated the first 4
+ * tiles in PersonalMetrics. Tiles use the same visual language now.
  */
 export default function Home() {
   const { loading, people } = useShapeData();
   const { activeUser } = useActiveUser();
 
   const me = useMemo(() => people.find((p) => p.name === activeUser), [people, activeUser]);
+  const allNames = useMemo(() => people.map((p) => p.name), [people]);
 
   if (loading) return <DashboardSkeleton />;
-  if (!activeUser) return null; // AppShell handles the picker
+  if (!activeUser) return null;
   if (!me) {
     return (
       <div className="max-w-6xl mx-auto w-full px-4 py-10 text-center">
@@ -41,23 +43,19 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
       <div className="fade-in-up delay-0">
-        <KpiCards person={me} />
+        <PersonalMetrics person={me} />
       </div>
 
       <div className="fade-in-up delay-1">
-        <Leaderboard people={people} currentUser={activeUser} />
+        <Forum currentUser={activeUser} allNames={allNames} />
       </div>
 
       <div className="fade-in-up delay-2">
-        <TeamFeed people={people} currentUser={activeUser} />
+        <TeamChartPane people={people} currentUser={activeUser} />
       </div>
 
       <div className="fade-in-up delay-3">
         <PersonalHistory person={me} />
-      </div>
-
-      <div className="fade-in-up delay-4">
-        <TeamChartPane people={people} />
       </div>
     </div>
   );

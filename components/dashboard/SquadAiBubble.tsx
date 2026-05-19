@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Send, X, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Sparkles, Send, X, Loader2, AlertCircle, MessageSquare, Lock } from 'lucide-react';
 import { useActiveUser } from '@/lib/useActiveUser';
 import { useShapeData } from '@/lib/useShapeData';
+import { useForum } from '@/lib/forum';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -11,11 +12,15 @@ interface Message {
 }
 
 const LIMIT = 10;
+const AI_OWNER = 'Petrica';
+const AI_UNLOCK_KEY = 'shapesquad_aicoach_unlocked_petrica';
+const AI_PIN = '12343212';
+
 const SUGGESTIONS = [
   '🔥 Cine a progresat cel mai mult?',
-  '😏 Roast pe cineva la întâmplare',
-  '⚡ Cum stă echipa pe streak?',
-  '💪 Sfat: cum scap de 2kg?',
+  '💡 Ce idei au apărut pe forum?',
+  '🎨 Sumarizează feedback-ul de design',
+  '📈 Top 3 pattern-uri din echipă',
 ];
 
 /**
@@ -29,14 +34,31 @@ const SUGGESTIONS = [
 export function SquadAiBubble() {
   const { activeUser } = useActiveUser();
   const { people } = useShapeData();
+  const { threads } = useForum();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [used, setUsed] = useState(0);
   const [remaining, setRemaining] = useState(LIMIT);
+  const [unlocked, setUnlocked] = useState(false);
+  const [pinPromptOpen, setPinPromptOpen] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
+
+  // Hydrate unlock state from localStorage
+  useEffect(() => {
+    try { setUnlocked(localStorage.getItem(AI_UNLOCK_KEY) === 'true'); }
+    catch { /* ignore */ }
+  }, []);
+
+  // Auto-focus PIN input when opened
+  useEffect(() => {
+    if (pinPromptOpen) setTimeout(() => pinRef.current?.focus(), 60);
+  }, [pinPromptOpen]);
 
   // Fetch rate status when first opened
   useEffect(() => {
@@ -75,10 +97,25 @@ export function SquadAiBubble() {
 
     const user = activeUser || 'anon';
     try {
+      // Condense forum threads to feed the AI — title/author/body/comment count
+      const forumDigest = Object.values(threads)
+        .sort((a, b) => b.ts - a.ts)
+        .slice(0, 12)
+        .map((t) => ({
+          title: t.title,
+          by: t.by,
+          body: t.body?.slice(0, 400) ?? '',
+          comments: t.comments.slice(0, 5).map((c) => ({
+            from: c.from,
+            text: c.text.slice(0, 200),
+          })),
+          likes: t.likes.length,
+          commentCount: t.comments.length,
+        }));
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-shapesquad-user': user },
-        body: JSON.stringify({ messages: next, people }),
+        body: JSON.stringify({ messages: next, people, forum: forumDigest }),
       });
       const data = await res.json();
       if (typeof data.used === 'number') setUsed(data.used);
@@ -99,12 +136,96 @@ export function SquadAiBubble() {
     }
   }
 
-  if (!activeUser) return null;
+  // ─── ACCESS GATE — Squad AI Coach is only available to Petrica ───────
+  if (!activeUser || activeUser !== AI_OWNER) return null;
+
+  const trySubmitPin = () => {
+    if (pinInput === AI_PIN) {
+      try { localStorage.setItem(AI_UNLOCK_KEY, 'true'); } catch { /* ignore */ }
+      setUnlocked(true);
+      setPinPromptOpen(false);
+      setPinInput('');
+      setPinError(false);
+      setOpen(true);
+    } else {
+      setPinError(true);
+    }
+  };
+
+  const handleBubbleClick = () => {
+    if (!unlocked) {
+      setPinPromptOpen(true);
+      return;
+    }
+    setOpen(true);
+  };
 
   const counterTone = remaining >= 5 ? 'text-[var(--color-fg-muted)]' : remaining >= 2 ? 'text-[var(--color-warn)]' : 'text-[var(--color-bad)]';
 
   return (
     <>
+      {/* PIN gate */}
+      {pinPromptOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[55] bg-black/60 backdrop-blur-[3px] anim-fade-in"
+            onClick={() => setPinPromptOpen(false)}
+            aria-hidden
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cod acces Squad AI"
+            className="fixed z-[60] inset-0 flex items-center justify-center p-4 pointer-events-none"
+          >
+            <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] shadow-2xl shadow-black/50 anim-scale p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-[var(--color-accent)]/15 flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-[var(--color-accent)]" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">Squad AI Coach</div>
+                  <div className="text-[10px] text-[var(--color-fg-muted)]">privat · cod necesar</div>
+                </div>
+              </div>
+              <input
+                ref={pinRef}
+                type="password"
+                inputMode="numeric"
+                value={pinInput}
+                onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') trySubmitPin(); }}
+                placeholder="cod acces"
+                className={`w-full text-center num tracking-[0.3em] font-bold text-lg h-11 px-3 rounded-lg bg-[var(--color-surface)] border ${pinError ? 'border-[var(--color-bad)]' : 'border-[var(--color-border)]'} text-[var(--color-fg)] placeholder:text-[var(--color-fg-faint)] placeholder:tracking-normal placeholder:font-normal placeholder:text-sm focus:outline-none focus:border-[var(--color-accent)]`}
+                autoFocus
+              />
+              {pinError && (
+                <div className="text-[11px] text-[var(--color-bad)] mt-2 text-center">Cod greșit, mai încearcă.</div>
+              )}
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => { setPinPromptOpen(false); setPinInput(''); setPinError(false); }}
+                  className="flex-1 text-xs font-semibold py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
+                >
+                  Anulează
+                </button>
+                <button
+                  onClick={trySubmitPin}
+                  disabled={!pinInput.trim()}
+                  className="flex-1 text-xs font-bold py-2 rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  style={{ background: 'linear-gradient(135deg, var(--color-accent-soft), var(--color-accent-deep))' }}
+                >
+                  Deblochează
+                </button>
+              </div>
+              <div className="text-[10px] text-[var(--color-fg-faint)] mt-2 text-center">
+                doar Petrica are acces · datele Forum sunt analizate de AI
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Collapsed: label pill + bubble */}
       <div
         className={cn(
@@ -113,7 +234,7 @@ export function SquadAiBubble() {
         )}
       >
         <button
-          onClick={() => setOpen(true)}
+          onClick={handleBubbleClick}
           className="hidden sm:flex items-center gap-2 h-12 pl-3.5 pr-3 rounded-full border shadow-2xl shadow-black/40 hover:-translate-x-0.5 transition-all"
           style={{
             background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12))',
@@ -127,13 +248,13 @@ export function SquadAiBubble() {
         </button>
 
         <button
-          onClick={() => setOpen(true)}
+          onClick={handleBubbleClick}
           className="relative w-14 h-14 rounded-full border-2 shadow-2xl shadow-black/50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
           style={{
             background: 'linear-gradient(135deg, var(--color-accent-soft), var(--color-accent-deep))',
             borderColor: 'rgba(255,255,255,0.20)',
           }}
-          aria-label="Squad AI Coach"
+          aria-label={unlocked ? 'Squad AI Coach' : 'Squad AI Coach (cod necesar)'}
         >
           <Sparkles className="w-6 h-6 text-white" strokeWidth={2.4} />
           <span className="sm:hidden absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--color-accent)] anim-pulse" />
