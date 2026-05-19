@@ -67,6 +67,21 @@ export function PersonalMetrics({ person }: { person: Person }) {
     [specs, sortedAsc, person.gender],
   );
 
+  // Ordered spec list for the drawer's module navigation — only the tiles
+  // that actually have data (same set the user sees as mini-modules).
+  const drawerSpecs: MetricSpec[] = useMemo(
+    () => tiles.map((t) => ({
+      key: t.key as MetricKey,
+      label: t.label,
+      unit: t.unit,
+      lowerBetter: t.lowerBetter,
+      decimals: t.decimals,
+      color: t.color,
+      target: t.target,
+    })),
+    [tiles],
+  );
+
   const [openSpec, setOpenSpec] = useState<MetricSpec | null>(null);
 
   if (tiles.length === 0) {
@@ -119,6 +134,8 @@ export function PersonalMetrics({ person }: { person: Person }) {
         personName={person.name}
         viewer={activeUser}
         onClose={() => setOpenSpec(null)}
+        specs={drawerSpecs}
+        onNavigate={setOpenSpec}
       />
     </>
   );

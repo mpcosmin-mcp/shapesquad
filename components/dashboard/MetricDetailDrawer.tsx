@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Entry, MetricKey } from '@/lib/shape';
 import { personalDeltaColor } from '@/lib/shape';
 import { fmtDate } from '@/lib/utils';
@@ -31,17 +31,28 @@ export interface MetricSpec {
 }
 
 export function MetricDetailDrawer({
-  spec, entries, personName, viewer, onClose,
+  spec, entries, personName, viewer, onClose, specs, onNavigate,
 }: {
   spec: MetricSpec | null;
   entries: Entry[];
   personName: string;
   viewer: string;
   onClose: () => void;
+  /** Ordered list of all open-able metrics — enables ‹ › + pill nav + arrow keys */
+  specs?: MetricSpec[];
+  /** Jump to another metric without closing the drawer */
+  onNavigate?: (next: MetricSpec) => void;
 }) {
   useEffect(() => {
     if (!spec) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (!onNavigate || !specs || specs.length < 2) return;
+      const i = specs.findIndex((s) => s.key === spec.key);
+      if (i < 0) return;
+      if (e.key === 'ArrowRight') onNavigate(specs[(i + 1) % specs.length]);
+      else if (e.key === 'ArrowLeft') onNavigate(specs[(i - 1 + specs.length) % specs.length]);
+    };
     document.addEventListener('keydown', onKey);
     // Prevent background scroll when drawer is open
     const prev = document.body.style.overflow;
@@ -50,7 +61,7 @@ export function MetricDetailDrawer({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [spec, onClose]);
+  }, [spec, onClose, onNavigate, specs]);
 
   const data = useMemo(() => {
     if (!spec) return null;
@@ -83,6 +94,12 @@ export function MetricDetailDrawer({
   }, [spec, entries]);
 
   if (!spec) return null;
+
+  // Module navigation — cycle through metrics without closing.
+  const navIdx = specs ? specs.findIndex((s) => s.key === spec.key) : -1;
+  const canNav = !!onNavigate && !!specs && specs.length > 1 && navIdx >= 0;
+  const prevSpec = canNav ? specs![(navIdx - 1 + specs!.length) % specs!.length] : null;
+  const nextSpec = canNav ? specs![(navIdx + 1) % specs!.length] : null;
 
   return (
     <>
@@ -127,6 +144,24 @@ export function MetricDetailDrawer({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {canNav && (
+              <>
+                <button
+                  onClick={() => onNavigate!(prevSpec!)}
+                  className="tap rounded-lg flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
+                  aria-label="Modulul anterior"
+                >
+                  <ChevronLeft size={16} strokeWidth={2} />
+                </button>
+                <button
+                  onClick={() => onNavigate!(nextSpec!)}
+                  className="tap rounded-lg flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
+                  aria-label="Modulul următor"
+                >
+                  <ChevronRight size={16} strokeWidth={2} />
+                </button>
+              </>
+            )}
             <LikeButton
               targetKey={likeKey.metric(personName, spec.key)}
               by={viewer}
@@ -143,6 +178,27 @@ export function MetricDetailDrawer({
             </button>
           </div>
         </div>
+
+        {/* Module switcher — jump straight to any metric */}
+        {canNav && (
+          <div className="shrink-0 flex gap-1.5 px-4 sm:px-5 py-2 border-b border-[var(--color-border)] overflow-x-auto">
+            {specs!.map((s) => {
+              const active = s.key === spec.key;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => onNavigate!(s)}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors shrink-0"
+                  style={active
+                    ? { background: s.color, color: 'var(--color-bg)' }
+                    : { background: 'var(--color-surface)', color: 'var(--color-fg-muted)' }}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Scroll body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
