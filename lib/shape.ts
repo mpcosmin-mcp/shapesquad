@@ -623,6 +623,234 @@ export const deltaColor = dColor;
 export const fmt = f;
 export const PERSON_COLORS = COLORS;
 
+// ════════════════════════════════════════════════════════════════════════════
+// SLEEP-TRACKER-V2 PARITY — color/tier/status helpers for new dashboard.
+// All additive. Existing exports above stay intact.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Identifier for a single measurement event across the team (used by social layer) */
+export function entryKeyOf(date: string, name: string): string {
+  return `${date}_${name}`;
+}
+
+/** First name derived from "Full Name" — used in feed/leaderboard captions */
+export function firstNameOf(name: string): string {
+  return (name || '').split(/\s+/)[0] || name;
+}
+
+/** Tinted person color (alias for existing PERSON_COLORS picker, index-based) */
+export function personColor(name: string, allNames: string[]): string {
+  const idx = Math.max(0, allNames.indexOf(name));
+  return COLORS[idx % COLORS.length];
+}
+
+/* ── Color scales — BINARY semantic: above target = green, below = red. ─── */
+
+const C = {
+  elite: '#10b981',
+  good:  '#4ade80',
+  under: '#f97316',
+  bad:   '#ef4444',
+  dim:   '#52525b',
+} as const;
+
+/** Weight color — neutral, hovers near user's reference (no global "good kg") */
+export function kgColor(_kg: number | null): string {
+  return 'var(--color-accent)';
+}
+
+/** Body Fat % — LOWER is better. Targets depend on gender. */
+export function bfColor(bf: number | null, gender: 'M' | 'F'): string {
+  if (bf == null) return C.dim;
+  const t = gender === 'M' ? { elite: 12, good: 20, under: 26 } : { elite: 20, good: 28, under: 34 };
+  if (bf < t.elite) return C.elite;
+  if (bf <= t.good) return C.good;
+  if (bf <= t.under) return C.under;
+  return C.bad;
+}
+
+/** Muscle % — HIGHER is better. */
+export function muscleColor(mus: number | null, gender: 'M' | 'F'): string {
+  if (mus == null) return C.dim;
+  const t = gender === 'M' ? { elite: 42, good: 35, under: 30 } : { elite: 32, good: 28, under: 24 };
+  if (mus >= t.elite) return C.elite;
+  if (mus >= t.good) return C.good;
+  if (mus >= t.under) return C.under;
+  return C.bad;
+}
+
+/** Visceral fat (1–30 scale) — LOWER is better. <10 normal, 10-14 high, ≥15 dangerous. */
+export function visceralColor(vf: number | null): string {
+  if (vf == null) return C.dim;
+  if (vf <= 5) return C.elite;
+  if (vf <= 9) return C.good;
+  if (vf <= 14) return C.under;
+  return C.bad;
+}
+
+/* ── Tier labels (for the bottom-of-metric chip) ── */
+
+export function bfTier(bf: number | null, gender: 'M' | 'F'): { label: string; color: string } {
+  if (bf == null) return { label: '—', color: C.dim };
+  const t = gender === 'M' ? { elite: 12, good: 20, under: 26 } : { elite: 20, good: 28, under: 34 };
+  if (bf < t.elite) return { label: 'Atletic', color: C.elite };
+  if (bf <= t.good) return { label: 'Bun', color: C.good };
+  if (bf <= t.under) return { label: 'Peste target', color: C.under };
+  return { label: 'Ridicat', color: C.bad };
+}
+
+export function muscleTier(mus: number | null, gender: 'M' | 'F'): { label: string; color: string } {
+  if (mus == null) return { label: '—', color: C.dim };
+  const t = gender === 'M' ? { elite: 42, good: 35, under: 30 } : { elite: 32, good: 28, under: 24 };
+  if (mus >= t.elite) return { label: 'Excelent', color: C.elite };
+  if (mus >= t.good) return { label: 'Bun', color: C.good };
+  if (mus >= t.under) return { label: 'Sub target', color: C.under };
+  return { label: 'Slab', color: C.bad };
+}
+
+export function visceralTier(vf: number | null): { label: string; color: string } {
+  if (vf == null) return { label: '—', color: C.dim };
+  if (vf <= 5) return { label: 'Excelent', color: C.elite };
+  if (vf <= 9) return { label: 'Normal', color: C.good };
+  if (vf <= 14) return { label: 'Ridicat', color: C.under };
+  return { label: 'Periculos', color: C.bad };
+}
+
+/** Generic "+N peste / -N sub target" indicator */
+export interface MetricStatus {
+  arrow: '↑' | '↓' | '→';
+  label: string;
+  color: string;
+}
+
+export function metricStatus(
+  value: number | null,
+  target: number,
+  lowerBetter = false,
+  unit = '',
+): MetricStatus {
+  if (value == null) return { arrow: '→', label: '—', color: C.dim };
+  const delta = lowerBetter ? target - value : value - target;
+  const onTarget = delta >= 0;
+  const color = onTarget ? C.good : C.bad;
+  if (Math.abs(delta) < 0.5) {
+    return { arrow: '→', label: 'aproape de target', color };
+  }
+  const sign = delta > 0 ? '+' : '';
+  const direction = delta > 0 ? '↑' : '↓';
+  const word = onTarget ? 'peste target' : 'sub target';
+  return { arrow: direction, label: `${sign}${delta.toFixed(1)}${unit} ${word}`, color };
+}
+
+/* ── Range filter — last N months from today ── */
+
+export function lastNMonths(entries: Entry[], n: number, from: Date = new Date()): Entry[] {
+  const cutoff = new Date(from);
+  cutoff.setMonth(cutoff.getMonth() - n);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  return entries.filter((e) => e.date >= cutStr);
+}
+
+/* ── Aggregate per person within an entry slice (Leaderboard) ── */
+
+export interface AggRow {
+  name: string;
+  gender: 'M' | 'F';
+  kg: number | null;
+  bodyFat: number | null;
+  muscle: number | null;
+  visceralFat: number | null;
+  entries: number;
+}
+
+export function aggregateShape(entries: Entry[]): AggRow[] {
+  const byName = new Map<
+    string,
+    { gender: 'M' | 'F'; kgSum: number; kgN: number; bfSum: number; bfN: number; mSum: number; mN: number; vSum: number; vN: number; n: number }
+  >();
+  for (const e of entries) {
+    const cur =
+      byName.get(e.name) ?? { gender: e.gender, kgSum: 0, kgN: 0, bfSum: 0, bfN: 0, mSum: 0, mN: 0, vSum: 0, vN: 0, n: 0 };
+    cur.gender = e.gender;
+    if (e.kg != null) { cur.kgSum += e.kg; cur.kgN++; }
+    if (e.bodyFat != null) { cur.bfSum += e.bodyFat; cur.bfN++; }
+    if (e.muscle != null) { cur.mSum += e.muscle; cur.mN++; }
+    if (e.visceralFat != null) { cur.vSum += e.visceralFat; cur.vN++; }
+    cur.n++;
+    byName.set(e.name, cur);
+  }
+  const rows: AggRow[] = [];
+  for (const [name, v] of byName) {
+    rows.push({
+      name,
+      gender: v.gender,
+      kg: v.kgN ? Math.round((v.kgSum / v.kgN) * 10) / 10 : null,
+      bodyFat: v.bfN ? Math.round((v.bfSum / v.bfN) * 10) / 10 : null,
+      muscle: v.mN ? Math.round((v.mSum / v.mN) * 10) / 10 : null,
+      visceralFat: v.vN ? Math.round(v.vSum / v.vN) : null,
+      entries: v.n,
+    });
+  }
+  return rows;
+}
+
+/* ── Personal pattern observation (deterministic, no AI) ───────────────
+ *
+ * Sleep tracker exposes `personalTrendNote(entries, user)` returning a
+ * short Romanian one-liner with tone (good/warn/neutral). We do the same
+ * here based on BF / muscle / weight movement across recent measurements.
+ */
+export interface TrendNote {
+  text: string;
+  tone: 'good' | 'neutral' | 'warn';
+}
+
+export function personalTrendNote(p: Person): TrendNote | null {
+  const mine = [...p.entries].sort((a, b) => a.date.localeCompare(b.date));
+  if (mine.length < 2) return null;
+
+  const last = mine[mine.length - 1];
+  const prev = mine[mine.length - 2];
+
+  // 1. Multi-entry BF trend (strongest signal)
+  const bfList = mine.filter((e) => e.bodyFat != null).map((e) => e.bodyFat!);
+  if (bfList.length >= 3) {
+    const first = bfList[0];
+    const lastBf = bfList[bfList.length - 1];
+    const drop = first - lastBf;
+    if (drop >= 2) return { text: `BF −${drop.toFixed(1)}% de la start · momentum solid`, tone: 'good' };
+    if (drop <= -2) return { text: `BF +${Math.abs(drop).toFixed(1)}% de la start · recalibrare`, tone: 'warn' };
+  }
+
+  // 2. Recomposition — BF stable/down + muscle up
+  if (last.muscle != null && prev.muscle != null) {
+    const m = last.muscle - prev.muscle;
+    const bDelta = last.bodyFat != null && prev.bodyFat != null ? last.bodyFat - prev.bodyFat : 0;
+    if (m >= 0.5 && bDelta <= 0.3) return { text: `+${m.toFixed(1)}% masă musculară · recompoziție`, tone: 'good' };
+    if (m <= -0.5) return { text: `${m.toFixed(1)}% masă musculară · atenție la macros`, tone: 'warn' };
+  }
+
+  // 3. Recent BF jump
+  if (last.bodyFat != null && prev.bodyFat != null) {
+    const bd = last.bodyFat - prev.bodyFat;
+    if (bd <= -1) return { text: `−${Math.abs(bd).toFixed(1)}% BF vs ultima · keep going`, tone: 'good' };
+    if (bd >= 1.5) return { text: `+${bd.toFixed(1)}% BF vs ultima · weekend gras?`, tone: 'warn' };
+  }
+
+  // 4. Visceral fat alarm
+  if (last.visceralFat != null && last.visceralFat >= 15) {
+    return { text: `visceral ${last.visceralFat} · zona periculoasă, consult medical`, tone: 'warn' };
+  }
+
+  // 5. Weight stable hint
+  if (last.kg != null && prev.kg != null) {
+    const w = last.kg - prev.kg;
+    if (Math.abs(w) <= 0.3) return { text: `greutate stabilă · ${last.kg.toFixed(1)}kg`, tone: 'neutral' };
+  }
+
+  return null;
+}
+
 // ── Demo Data ──────────────────────────────────────────
 const DEMO_DATA: Entry[] = [
   { name: 'Adina', date: '2025-08-20', kg: 56, bodyFat: 25.1, visceralFat: 6, muscle: null, water: null, gender: 'F', biceps: 26, spate: 82, piept: 88, talie: 70, fesieri: 96 },
