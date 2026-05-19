@@ -39,10 +39,19 @@ export function TeamChartPane({ people, currentUser }: { people: Person[]; curre
     return lastNMonths(allEntries, range === '3m' ? 3 : 6);
   }, [allEntries, range]);
 
-  const allDates = useMemo(
-    () => [...new Set(scoped.map((e) => e.date))].sort(),
-    [scoped],
-  );
+  // Monthly cadence: when filtered on a single user, the X-axis is just
+  // their own measurement dates (continuous line, no gaps where teammates
+  // logged on other dates). When showing everyone, use the union of dates
+  // so every line shares the same X grid.
+  const allDates = useMemo(() => {
+    if (focusUser) {
+      return scoped
+        .filter((e) => e.name === focusUser)
+        .map((e) => e.date)
+        .sort();
+    }
+    return [...new Set(scoped.map((e) => e.date))].sort();
+  }, [scoped, focusUser]);
 
   const series = useMemo(() => {
     const usersToShow = focusUser ? [focusUser] : people.map((p) => p.name);

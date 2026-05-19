@@ -4,9 +4,7 @@ import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
 import { KpiCards } from '@/components/dashboard/KpiCards';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
-import { SquadPulse } from '@/components/dashboard/SquadPulse';
 import { Forum } from '@/components/dashboard/Forum';
-import { ProgressWall } from '@/components/dashboard/ProgressWall';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
 import { TeamChartPane } from '@/components/dashboard/TeamChartPane';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
@@ -14,18 +12,12 @@ import { DashboardSkeleton } from '@/components/ui/Skeleton';
 /**
  * Single-page dashboard — personal-first social wellness layout.
  *
- *   1. KpiCards       — 4 KPI mari (greutate / BF / muscle / visceral).
- *   2. PersonalMetrics — grid de mini-module: TOATE metricele tale, fiecare cu
- *                        sparkline + Δ start + Δ prev. Gender-aware measurements.
- *   3. SquadPulse     — strip orizontal · cine a logat luna asta + streak.
- *   4. Forum          — thread-uri Reddit-style: titlu, body, likes, comments,
- *                        replies. Free-form, niciuna legată de o măsurătoare.
- *   5. ProgressWall   — "pentru fun · cum stăm cu toții". Δ-uri per persoană,
- *                        fără ranking.
- *   6. TeamChartPane  — chart multi-metric · default doar tu, "Toți" opt-in.
- *   7. PersonalHistory — ultimele logs tabular + pills personal-trend.
- *
- * Floating bottom-right: Squad AI bubble (AppShell).
+ *   1. KpiCards        — 4 KPI mari (greutate / BF / muscle / visceral).
+ *   2. PersonalMetrics — grid de mini-module · click → drawer detaliat.
+ *   3. Forum           — thread-uri Reddit-style cu likes + comments + replies.
+ *   4. TeamChartPane   — chart multi-metric · default doar tu (linie continuă),
+ *                        "Toți" opt-in pentru overlay.
+ *   5. PersonalHistory — ultimele logs tabular + pills personal-trend.
  */
 export default function Home() {
   const { loading, people } = useShapeData();
@@ -57,22 +49,14 @@ export default function Home() {
       </div>
 
       <div className="fade-in-up delay-2">
-        <SquadPulse people={people} currentUser={activeUser} />
-      </div>
-
-      <div className="fade-in-up delay-3">
         <Forum currentUser={activeUser} allNames={allNames} />
       </div>
 
-      <div className="fade-in-up delay-4">
-        <ProgressWall people={people} currentUser={activeUser} />
-      </div>
-
-      <div className="fade-in-up delay-5">
+      <div className="fade-in-up delay-3">
         <TeamChartPane people={people} currentUser={activeUser} />
       </div>
 
-      <div className="fade-in-up delay-5">
+      <div className="fade-in-up delay-4">
         <PersonalHistory person={me} />
       </div>
     </div>

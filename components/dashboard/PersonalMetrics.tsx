@@ -1,17 +1,17 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   type Person, type Entry, type MetricKey,
   bfColor, muscleColor, visceralColor, personalDeltaColor,
 } from '@/lib/shape';
 import { Sparkline } from '@/components/ui/Sparkline';
+import { MetricDetailDrawer, type MetricSpec } from '@/components/dashboard/MetricDetailDrawer';
 
 /**
  * Personal Metrics — minimalist grid of mini-modules for the logged-in user.
  *
- * Goal: after login, see YOUR entire progress on every metric at a glance.
- * Each module shows: label + current + tiny sparkline + Δ vs first + Δ vs last.
- * Auto-hide modules where the user has no data, so the grid stays clean.
+ * Click any tile → opens MetricDetailDrawer (right side, ~40% screen on
+ * desktop, full-screen on mobile) with the full history for that metric.
  *
  * Gender-aware: M sees biceps/piept/spate/fesieri; F sees biceps/piept/talie/fesieri.
  */
@@ -22,6 +22,7 @@ type Spec = {
   unit: string;
   lowerBetter: boolean;
   decimals: number;
+  target?: number;
   colorOf: (v: number | null, gender: 'M' | 'F') => string;
 };
 
@@ -29,7 +30,7 @@ const BODY_SPECS: Spec[] = [
   { key: 'kg',          label: 'Greutate', unit: 'kg', lowerBetter: false, decimals: 1, colorOf: () => 'var(--color-accent)' },
   { key: 'bodyFat',     label: 'Body fat', unit: '%',  lowerBetter: true,  decimals: 1, colorOf: (v, g) => bfColor(v, g) },
   { key: 'muscle',      label: 'Muscle',   unit: '%',  lowerBetter: false, decimals: 1, colorOf: (v, g) => muscleColor(v, g) },
-  { key: 'visceralFat', label: 'Visceral', unit: '',   lowerBetter: true,  decimals: 0, colorOf: (v) => visceralColor(v) },
+  { key: 'visceralFat', label: 'Visceral', unit: '',   lowerBetter: true,  decimals: 0, target: 9, colorOf: (v) => visceralColor(v) },
   { key: 'water',       label: 'Apă',      unit: '%',  lowerBetter: false, decimals: 1, colorOf: () => '#22d3ee' },
 ];
 
@@ -52,14 +53,17 @@ export function PersonalMetrics({ person }: { person: Person }) {
     [person.entries],
   );
 
-  const specs: Spec[] = [
+  const specs: Spec[] = useMemo(() => [
     ...BODY_SPECS,
     ...(person.gender === 'F' ? MEASURE_SPECS_F : MEASURE_SPECS_M),
-  ];
+  ], [person.gender]);
 
-  const tiles = specs
-    .map((s) => buildTile(s, sortedAsc, person.gender))
-    .filter((t) => t.current != null);
+  const tiles = useMemo(
+    () => specs.map((s) => buildTile(s, sortedAsc, person.gender)).filter((t) => t.current != null),
+    [specs, sortedAsc, person.gender],
+  );
+
+  const [openSpec, setOpenSpec] = useState<MetricSpec | null>(null);
 
   if (tiles.length === 0) {
     return (
@@ -72,23 +76,43 @@ export function PersonalMetrics({ person }: { person: Person }) {
   }
 
   return (
-    <section className="card px-4 sm:px-5 py-4">
-      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
-        <div>
-          <div className="label">Progresul tău · pe fiecare metric</div>
-          <div className="text-[10px] num text-[var(--color-fg-faint)] mt-0.5">
-            Δ start = de la prima măsurătoare · Δ prev = vs luna anterioară
+    <>
+      <section className="card px-4 sm:px-5 py-4">
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
+          <div>
+            <div className="label">Progresul tău · click pentru detalii</div>
+            <div className="text-[10px] num text-[var(--color-fg-faint)] mt-0.5">
+              Δ start = de la prima măsurătoare · Δ prev = vs luna anterioară
+            </div>
           </div>
+          <div className="text-[10px] num text-[var(--color-fg-faint)]">{sortedAsc.length} măsurători</div>
         </div>
-        <div className="text-[10px] num text-[var(--color-fg-faint)]">{sortedAsc.length} măsurători</div>
-      </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-        {tiles.map((t) => (
-          <MiniTile key={t.key} tile={t} />
-        ))}
-      </div>
-    </section>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {tiles.map((t) => (
+            <MiniTile
+              key={t.key}
+              tile={t}
+              onOpen={() => setOpenSpec({
+                key: t.key as MetricKey,
+                label: t.label,
+                unit: t.unit,
+                lowerBetter: t.lowerBetter,
+                decimals: t.decimals,
+                color: t.color,
+                target: t.target,
+              })}
+            />
+          ))}
+        </div>
+      </section>
+
+      <MetricDetailDrawer
+        spec={openSpec}
+        entries={person.entries}
+        onClose={() => setOpenSpec(null)}
+      />
+    </>
   );
 }
 
@@ -97,6 +121,8 @@ interface Tile {
   label: string;
   unit: string;
   decimals: number;
+  lowerBetter: boolean;
+  target?: number;
   current: number | null;
   color: string;
   series: (number | null)[];
@@ -119,7 +145,6 @@ function buildTile(s: Spec, sortedAsc: Entry[], gender: 'M' | 'F'): Tile {
   const deltaStart = first != null && last != null ? round(last - first, s.decimals) : null;
   const deltaPrev = prev != null && last != null ? round(last - prev, s.decimals) : null;
 
-  // Sparkline: last 6 measurements
   const tailDates = dates.slice(-6);
   const tailValues = values.slice(-6);
 
@@ -128,6 +153,8 @@ function buildTile(s: Spec, sortedAsc: Entry[], gender: 'M' | 'F'): Tile {
     label: s.label,
     unit: s.unit,
     decimals: s.decimals,
+    lowerBetter: s.lowerBetter,
+    target: s.target,
     current: last,
     color: s.colorOf(last, gender),
     series: tailValues,
@@ -144,9 +171,13 @@ function round(n: number, dec: number): number {
   return Math.round(n * f) / f;
 }
 
-function MiniTile({ tile }: { tile: Tile }) {
+function MiniTile({ tile, onOpen }: { tile: Tile; onOpen: () => void }) {
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 flex flex-col gap-1.5">
+    <button
+      onClick={onOpen}
+      className="text-left rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 flex flex-col gap-1.5 transition-all hover:border-[var(--color-border-strong)] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.4)] active:translate-y-0 cursor-pointer"
+      aria-label={`Deschide detalii ${tile.label}`}
+    >
       <div className="flex items-baseline justify-between gap-1">
         <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate">
           {tile.label}
@@ -179,7 +210,7 @@ function MiniTile({ tile }: { tile: Tile }) {
         <DeltaLine label="start" delta={tile.deltaStart} unit={tile.unit} color={tile.deltaStartColor} dec={tile.decimals} />
         <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
       </div>
-    </div>
+    </button>
   );
 }
 
