@@ -6,7 +6,6 @@ import { useActiveUser } from '@/lib/useActiveUser';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
 import { Forum } from '@/components/dashboard/Forum';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
-import { TeamChartPane } from '@/components/dashboard/TeamChartPane';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -16,8 +15,7 @@ import { DashboardSkeleton } from '@/components/ui/Skeleton';
  *                        (greutate, BF, muscle, visceral, apă +
  *                        4 măsurători gender-aware). Click → modal detalii.
  *   2. Forum           — thread-uri Reddit-style cu likes + comments + replies.
- *   3. TeamChartPane   — chart multi-metric · default doar tu, "Toți" opt-in.
- *   4. PersonalHistory — ultimele logs tabular + pills personal-trend.
+ *   3. PersonalHistory — ultimele logs tabular + pills personal-trend.
  *
  * KpiCards section was retired: its 4 metrics duplicated the first 4
  * tiles in PersonalMetrics. Tiles use the same visual language now.
@@ -56,10 +54,6 @@ export default function Home() {
       </div>
 
       <div className="fade-in-up delay-2">
-        <TeamChartPane people={people} currentUser={activeUser} />
-      </div>
-
-      <div className="fade-in-up delay-3">
         <PersonalHistory person={me} />
       </div>
     </div>
