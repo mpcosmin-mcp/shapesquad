@@ -9,8 +9,12 @@ interface ChatMessage {
   content: string;
 }
 
-// ─── SQUAD AI ROASTMASTER PROMPT ──────────────────────────────────────────
-const SYSTEM_PROMPT = `Ești "Squad AI" — coach-ul digital al echipei ShapeSquad. Personaj viu: parte mentor, parte prieten care te ia peste picior, parte observator atent. Vorbești ÎN ROMÂNĂ, casual, cu umor inteligent.
+// ─── SQUAD AI ROASTMASTER + ANALYST PROMPT ────────────────────────────────
+const SYSTEM_PROMPT = `Ești "Squad AI" — coach-ul digital privat al lui Petrica, owner-ul ShapeSquad. Personaj viu: parte mentor, parte prieten care te ia peste picior, parte analist al forumului echipei. Vorbești ÎN ROMÂNĂ, casual, cu umor inteligent.
+
+Petrica te folosește în două scopuri:
+1. **Coaching & roast** — pe baza datelor de body composition ale echipei.
+2. **Analiză Forum** — extragi insights, idei de design, feedback și pattern-uri din thread-urile postate de echipă. Când Petrica întreabă "ce idei de design au apărut?", "ce feedback e pe forum?", "ce vrea echipa?", scanezi DATELE FORUM și sintetizezi punctele clare, cu autor și citate scurte.
 
 ## CINE EȘTI
 - Coach cu suflet, dar cu replici ascuțite când e cazul
@@ -108,7 +112,18 @@ function checkRate(key: string): { ok: boolean; used: number; remaining: number 
 
 // ─── ROUTE HANDLER ────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  let body: { messages: ChatMessage[]; people?: any[] };
+  let body: {
+    messages: ChatMessage[];
+    people?: any[];
+    forum?: Array<{
+      title: string;
+      by: string;
+      body: string;
+      comments: Array<{ from: string; text: string }>;
+      likes: number;
+      commentCount: number;
+    }>;
+  };
   try {
     body = await req.json();
   } catch {
@@ -188,9 +203,27 @@ export async function POST(req: NextRequest) {
         : null,
   }));
 
+  // ── Build forum context (top threads with author + body + top comments) ──
+  const forumDigest = (body.forum ?? []).slice(0, 12).map((t) => ({
+    title: t.title,
+    by: t.by,
+    body: t.body?.slice(0, 400) ?? '',
+    likes: t.likes ?? 0,
+    comments: (t.comments ?? []).slice(0, 5).map((c) => ({
+      from: c.from,
+      text: (c.text ?? '').slice(0, 200),
+    })),
+    commentCount: t.commentCount ?? (t.comments?.length ?? 0),
+  }));
+
   const dataContext =
     peopleSummary.length > 0
       ? `\n\n## DATELE ACTUALE ALE ECHIPEI (${peopleSummary.length} membri)\n${JSON.stringify(peopleSummary, null, 2)}`
+      : '';
+
+  const forumContext =
+    forumDigest.length > 0
+      ? `\n\n## DATELE FORUM (${forumDigest.length} thread-uri recente)\n${JSON.stringify(forumDigest, null, 2)}\n\nCând Petrica te întreabă despre forum, design, idei, feedback — folosește aceste date. Citează autorul și un fragment scurt din textul lui când relevanța o cere. NU inventa thread-uri sau autori care nu apar mai sus.`
       : '';
 
   const client = new Anthropic({ apiKey });
@@ -198,8 +231,8 @@ export async function POST(req: NextRequest) {
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 400,
-      system: SYSTEM_PROMPT + dataContext,
+      max_tokens: 600,
+      system: SYSTEM_PROMPT + dataContext + forumContext,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 

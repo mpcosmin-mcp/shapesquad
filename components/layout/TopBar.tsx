@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { InstallAppButton } from '@/components/layout/InstallAppButton';
 
 /**
  * Thin sticky top bar — minimal chrome.
@@ -22,7 +23,10 @@ export function TopBar() {
             body · squad · ai
           </span>
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <InstallAppButton />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
