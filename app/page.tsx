@@ -2,7 +2,6 @@
 import { useMemo } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
-import { KpiCards } from '@/components/dashboard/KpiCards';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
 import { Forum } from '@/components/dashboard/Forum';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
@@ -10,14 +9,17 @@ import { TeamChartPane } from '@/components/dashboard/TeamChartPane';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 /**
- * Single-page dashboard — personal-first social wellness layout.
+ * Single-page dashboard — personal-first, unified mini-tile aesthetic.
  *
- *   1. KpiCards        — 4 KPI mari (greutate / BF / muscle / visceral).
- *   2. PersonalMetrics — grid de mini-module · click → drawer detaliat.
- *   3. Forum           — thread-uri Reddit-style cu likes + comments + replies.
- *   4. TeamChartPane   — chart multi-metric · default doar tu (linie continuă),
- *                        "Toți" opt-in pentru overlay.
- *   5. PersonalHistory — ultimele logs tabular + pills personal-trend.
+ *   1. PersonalMetrics — grid de mini-module pentru toate metricele
+ *                        (greutate, BF, muscle, visceral, apă +
+ *                        4 măsurători gender-aware). Click → modal detalii.
+ *   2. Forum           — thread-uri Reddit-style cu likes + comments + replies.
+ *   3. TeamChartPane   — chart multi-metric · default doar tu, "Toți" opt-in.
+ *   4. PersonalHistory — ultimele logs tabular + pills personal-trend.
+ *
+ * KpiCards section was retired: its 4 metrics duplicated the first 4
+ * tiles in PersonalMetrics. Tiles use the same visual language now.
  */
 export default function Home() {
   const { loading, people } = useShapeData();
@@ -41,22 +43,18 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
       <div className="fade-in-up delay-0">
-        <KpiCards person={me} />
-      </div>
-
-      <div className="fade-in-up delay-1">
         <PersonalMetrics person={me} />
       </div>
 
-      <div className="fade-in-up delay-2">
+      <div className="fade-in-up delay-1">
         <Forum currentUser={activeUser} allNames={allNames} />
       </div>
 
-      <div className="fade-in-up delay-3">
+      <div className="fade-in-up delay-2">
         <TeamChartPane people={people} currentUser={activeUser} />
       </div>
 
-      <div className="fade-in-up delay-4">
+      <div className="fade-in-up delay-3">
         <PersonalHistory person={me} />
       </div>
     </div>
