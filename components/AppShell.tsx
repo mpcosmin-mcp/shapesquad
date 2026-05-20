@@ -1,42 +1,67 @@
 'use client';
 import { useEffect } from 'react';
 import { useActiveUser } from '@/lib/useActiveUser';
+import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { useShapeData } from '@/lib/useShapeData';
 import { TopBar } from '@/components/layout/TopBar';
 import { SquadBar } from '@/components/layout/SquadBar';
+import { LoginPicker } from '@/components/layout/LoginPicker';
 
 /**
- * App shell — no login gate.
+ * App shell — login gate up front.
  *
  *   ┌─────────────────────────────────────────────────────┐
- *   │ TopBar (sticky)                                     │
+ *   │ LoginPicker (until you pick your account)            │
  *   ├─────────────────────────────────────────────────────┤
+ *   │ TopBar (sticky · shows you + switch account)         │
  *   │ SquadBar — horizontal user strip (sticky under top) │
- *   ├─────────────────────────────────────────────────────┤
  *   │ main · single-page dashboard scrolls naturally      │
  *   └─────────────────────────────────────────────────────┘
  *
- * The dashboard always renders. activeUser defaults to the first person
- * with the most measurements; users can switch via SquadBar.
+ * Two identities, decoupled:
+ *   • loggedInUser = WHO YOU ARE (the liker) — set once at login.
+ *   • activeUser   = WHO YOU'RE VIEWING — switchable via SquadBar.
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { activeUser, setActiveUser, mounted } = useActiveUser();
+  const { loggedInUser, setLoggedInUser, mounted: loginMounted } = useLoggedInUser();
   const { people, loading } = useShapeData();
 
-  // First-time visit: pick a sensible default user once data is loaded.
+  // Once logged in, default the VIEWED user to yourself (until you switch).
   useEffect(() => {
-    if (!mounted || loading) return;
+    if (!mounted || !loginMounted || loading) return;
+    if (!loggedInUser) return;
     if (activeUser && people.some((p) => p.name === activeUser)) return;
-    if (people.length === 0) return;
-    const sorted = [...people].sort((a, b) => b.entries.length - a.entries.length);
-    setActiveUser(sorted[0].name);
-  }, [mounted, loading, activeUser, people, setActiveUser]);
+    if (people.some((p) => p.name === loggedInUser)) {
+      setActiveUser(loggedInUser);
+    } else if (people.length > 0) {
+      const sorted = [...people].sort((a, b) => b.entries.length - a.entries.length);
+      setActiveUser(sorted[0].name);
+    }
+  }, [mounted, loginMounted, loading, loggedInUser, activeUser, people, setActiveUser]);
 
-  if (!mounted) {
+  if (!mounted || !loginMounted) {
     return (
       <div className="min-h-screen flex items-center justify-center text-[var(--color-fg-muted)] text-sm anim-pulse">
         se încarcă...
       </div>
+    );
+  }
+
+  // Login gate — pick your account once (needs the team list loaded).
+  if (!loggedInUser) {
+    if (loading || people.length === 0) {
+      return (
+        <div className="min-h-screen flex items-center justify-center text-[var(--color-fg-muted)] text-sm anim-pulse">
+          se încarcă...
+        </div>
+      );
+    }
+    return (
+      <LoginPicker
+        people={people}
+        onPick={(name) => { setLoggedInUser(name); setActiveUser(name); }}
+      />
     );
   }
 

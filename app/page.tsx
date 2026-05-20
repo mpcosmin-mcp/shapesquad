@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { PERSON_COLORS } from '@/lib/shape';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
+import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
 import { Forum } from '@/components/dashboard/Forum';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
@@ -23,6 +24,7 @@ import { DashboardSkeleton } from '@/components/ui/Skeleton';
 export default function Home() {
   const { loading, people } = useShapeData();
   const { activeUser } = useActiveUser();
+  const { loggedInUser } = useLoggedInUser();
 
   const me = useMemo(() => people.find((p) => p.name === activeUser), [people, activeUser]);
   const meColor = useMemo(() => {
@@ -46,11 +48,11 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
       <div className="fade-in-up delay-0">
-        <PersonalMetrics person={me} accent={meColor} />
+        <PersonalMetrics person={me} accent={meColor} viewer={loggedInUser} />
       </div>
 
       <div className="fade-in-up delay-1">
-        <Forum currentUser={activeUser} allNames={allNames} />
+        <Forum currentUser={loggedInUser} allNames={allNames} />
       </div>
 
       <div className="fade-in-up delay-2">

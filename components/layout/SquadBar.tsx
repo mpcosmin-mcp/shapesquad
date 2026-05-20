@@ -9,6 +9,7 @@ import { Avi } from '@/components/ui/Avi';
 import { LikeButton } from '@/components/ui/LikeButton';
 import { useShapeData } from '@/lib/useShapeData';
 import { useActiveUser } from '@/lib/useActiveUser';
+import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { likeKey } from '@/lib/likes';
 
 /**
@@ -24,6 +25,7 @@ import { likeKey } from '@/lib/likes';
 export function SquadBar() {
   const { people } = useShapeData();
   const { activeUser, setActiveUser } = useActiveUser();
+  const { loggedInUser } = useLoggedInUser();
   const [hovered, setHovered] = useState<string | null>(null);
   const tooltipTimer = useRef<number | null>(null);
 
@@ -65,7 +67,7 @@ export function SquadBar() {
               onPick={() => setActiveUser(p.name)}
               onEnter={() => showTooltip(p.name)}
               onLeave={hideTooltip}
-              currentUser={activeUser}
+              currentUser={loggedInUser}
               allPeople={people}
             />
           ))}
@@ -140,13 +142,15 @@ function UserChip({
                 <span>{tier.name}</span>
               </div>
             </div>
-            <LikeButton
-              targetKey={likeKey.user(person.name)}
-              by={currentUser}
-              size="md"
-              mode="pill"
-              label={`like pentru ${fn}`}
-            />
+            {person.name !== currentUser && (
+              <LikeButton
+                targetKey={likeKey.user(person.name)}
+                by={currentUser}
+                size="md"
+                mode="pill"
+                label={`like pentru ${fn}`}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 text-center mb-2">

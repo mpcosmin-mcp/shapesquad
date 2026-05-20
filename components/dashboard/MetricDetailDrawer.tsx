@@ -162,13 +162,15 @@ export function MetricDetailDrawer({
                 </button>
               </>
             )}
-            <LikeButton
-              targetKey={likeKey.metric(personName, spec.key)}
-              by={viewer}
-              size="md"
-              mode="pill"
-              label={`${personName} · ${spec.label}`}
-            />
+            {personName !== viewer && (
+              <LikeButton
+                targetKey={likeKey.metric(personName, spec.key)}
+                by={viewer}
+                size="md"
+                mode="pill"
+                label={`${personName} · ${spec.label}`}
+              />
+            )}
             <button
               onClick={onClose}
               className="tap rounded-lg flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"

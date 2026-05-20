@@ -8,7 +8,6 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { Avi } from '@/components/ui/Avi';
 import { LikeButton } from '@/components/ui/LikeButton';
 import { likeKey } from '@/lib/likes';
-import { useActiveUser } from '@/lib/useActiveUser';
 import { MetricDetailDrawer, type MetricSpec } from '@/components/dashboard/MetricDetailDrawer';
 
 /**
@@ -51,9 +50,9 @@ const MEASURE_SPECS_F: Spec[] = [
   { key: 'fesieri', label: 'Fesieri', unit: 'cm', lowerBetter: false, decimals: 1, colorOf: () => '#fbbf24' },
 ];
 
-export function PersonalMetrics({ person, accent }: { person: Person; accent: string }) {
-  const { activeUser } = useActiveUser();
+export function PersonalMetrics({ person, accent, viewer }: { person: Person; accent: string; viewer: string }) {
   const firstName = person.name.split(/\s+/)[0];
+  const isOwn = person.name === viewer; // viewing your own data → hide self-likes
   const sortedAsc = useMemo(
     () => [...person.entries].sort((a, b) => a.date.localeCompare(b.date)),
     [person.entries],
@@ -133,7 +132,8 @@ export function PersonalMetrics({ person, accent }: { person: Person; accent: st
               key={t.key}
               tile={t}
               personName={person.name}
-              viewer={activeUser}
+              viewer={viewer}
+              canLike={!isOwn}
               onOpen={() => setOpenSpec({
                 key: t.key as MetricKey,
                 label: t.label,
@@ -152,7 +152,7 @@ export function PersonalMetrics({ person, accent }: { person: Person; accent: st
         spec={openSpec}
         entries={person.entries}
         personName={person.name}
-        viewer={activeUser}
+        viewer={viewer}
         onClose={() => setOpenSpec(null)}
         specs={drawerSpecs}
         onNavigate={setOpenSpec}
@@ -217,11 +217,12 @@ function round(n: number, dec: number): number {
 }
 
 function MiniTile({
-  tile, personName, viewer, onOpen,
+  tile, personName, viewer, canLike, onOpen,
 }: {
   tile: Tile;
   personName: string;
   viewer: string;
+  canLike: boolean;
   onOpen: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -284,14 +285,16 @@ function MiniTile({
         <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
       </div>
       </button>
-      <div className="absolute top-1 right-1.5">
-        <LikeButton
-          targetKey={likeKey.metric(personName, tile.key)}
-          by={viewer}
-          size="sm"
-          label={`${personName} · ${tile.label}`}
-        />
-      </div>
+      {canLike && (
+        <div className="absolute top-1 right-1.5">
+          <LikeButton
+            targetKey={likeKey.metric(personName, tile.key)}
+            by={viewer}
+            size="sm"
+            label={`${personName} · ${tile.label}`}
+          />
+        </div>
+      )}
 
       {/* Hover preview — desktop peek: bigger chart + deltas + target + verdict */}
       {hovered && (
