@@ -8,7 +8,7 @@ import {
  * Likes — generic target-key based like system.
  *
  * Used for liking users (`user:<name>`), personal metrics
- * (`metric:<name>:<key>`), forum threads (`thread:<id>`) and anything else.
+ * (`metric:<name>:<key>`) and anything else.
  *
  * Backend: Vercel KV hash `shape:likes`. Falls back to localStorage offline.
  * ═══════════════════════════════════════════════════════════════════════ */
