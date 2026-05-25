@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
  * Generic LikeButton — small heart with optional count.
  *
  * - targetKey: opaque string identifying what's being liked
- *              (`user:Petrica`, `metric:Petrica:bodyFat`, `thread:abc`, ...)
+ *              (`user:Petrica`, `metric:Petrica:bodyFat`, ...)
  * - by: the current viewer's identity (used to record "I liked this")
  * - size: 'sm' (14px) | 'md' (16px) | 'lg' (20px)
  * - mode: 'inline' (icon + count) | 'pill' (rounded background with hover)
