@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
+import { LogOut, PlusCircle } from 'lucide-react';
 import { PERSON_COLORS } from '@/lib/shape';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { useShapeData } from '@/lib/useShapeData';
@@ -18,7 +18,7 @@ import { InstallAppButton } from '@/components/layout/InstallAppButton';
  * the SquadBar doesn't change it.
  */
 export function TopBar() {
-  const { loggedInUser, logout } = useLoggedInUser();
+  const { loggedInUser, logout, isAdmin } = useLoggedInUser();
   const { people } = useShapeData();
 
   const idx = people.findIndex((p) => p.name === loggedInUser);
@@ -37,6 +37,17 @@ export function TopBar() {
           </span>
         </Link>
         <div className="flex items-center gap-1">
+          {isAdmin && (
+            <Link
+              href="/log"
+              title="Loghează măsurătoare"
+              aria-label="Loghează măsurătoare"
+              className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors mr-0.5"
+            >
+              <PlusCircle size={14} />
+              <span className="text-[11px] font-bold hidden sm:inline">Log</span>
+            </Link>
+          )}
           {loggedInUser && (
             <button
               onClick={logout}

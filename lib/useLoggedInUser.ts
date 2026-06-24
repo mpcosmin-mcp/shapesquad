@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { isAdminName } from '@/lib/shape';
 
 /**
  * Logged-in identity — WHO YOU ARE (the liker / commenter).
  *
  * Distinct from `useActiveUser`, which is WHO YOU'RE VIEWING (switchable via
  * the SquadBar). You log in once; browsing other people's progress never
- * changes your identity, so likes/comments are always attributed to you.
+ * changes your identity — set once at login, drives the account gate.
  */
 const LOGGED_IN_KEY = 'shapesquad_logged_in_user';
 const LOGIN_CHANGE_EVENT = 'shapesquad:login-change';
@@ -50,5 +51,8 @@ export function useLoggedInUser() {
 
   const logout = useCallback(() => setLoggedInUser(''), [setLoggedInUser]);
 
-  return { loggedInUser, setLoggedInUser, logout, mounted };
+  // Admin = WHO YOU ARE logged in as (not who you're viewing). Gates the Log button.
+  const isAdmin = isAdminName(loggedInUser);
+
+  return { loggedInUser, setLoggedInUser, logout, mounted, isAdmin };
 }

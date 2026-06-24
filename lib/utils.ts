@@ -53,5 +53,15 @@ export function fmtMonth(monthKey: string): string {
   return `${MONTHS_RO[parseInt(m) - 1]} ${y}`;
 }
 
+/**
+ * Romanian-correct count label for measurements.
+ * 1 → "1 măsurătoare", 2–19 → "N măsurători", 20+ → "N de măsurători".
+ */
+export function masuratori(n: number): string {
+  if (n === 1) return '1 măsurătoare';
+  if (n >= 20) return `${n} de măsurători`;
+  return `${n} măsurători`;
+}
+
 /** Re-export for legibility in components */
 export { MONTHS_RO, MONTHS_RO_LOW, DAYS_RO_SHORT };

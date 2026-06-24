@@ -24,6 +24,14 @@ export interface Person {
   previous: Entry | null;
 }
 
+// ── Admins ─────────────────────────────────────────────
+// Single source of truth. Admins can log measurements for anyone and see the
+// Log entry point. Keyed off the LOGGED-IN identity (who you are), never the
+// active/viewed person. Case-sensitive — must match the Sheet's `Nume` column.
+export const ADMIN_NAMES = ['Petrica', 'Cosmin'];
+export const isAdminName = (name: string | null | undefined): boolean =>
+  !!name && ADMIN_NAMES.includes(name);
+
 // ── API ────────────────────────────────────────────────
 export const API = 'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
 
@@ -579,37 +587,6 @@ export function calcStreak(p: Person): StreakInfo {
   return { current, longest: Math.max(longest, current) };
 }
 
-// ── Likes (localStorage) ──────────────────────────────
-const LIKES_KEY = 'shapesquad_likes';
-
-export function getLikes(): Record<string, string[]> {
-  try {
-    return JSON.parse(localStorage.getItem(LIKES_KEY) || '{}');
-  } catch { return {}; }
-}
-
-export function toggleLike(from: string, to: string): Record<string, string[]> {
-  if (!from || !to || from === to) return getLikes();
-  const likes = getLikes();
-  const arr = likes[to] || [];
-  if (arr.includes(from)) {
-    likes[to] = arr.filter(n => n !== from);
-    if (likes[to].length === 0) delete likes[to];
-  } else {
-    likes[to] = [...arr, from];
-  }
-  try { localStorage.setItem(LIKES_KEY, JSON.stringify(likes)); } catch {}
-  return likes;
-}
-
-export function getLikeCount(likes: Record<string, string[]>, name: string): number {
-  return (likes[name] || []).length;
-}
-
-export function hasLiked(likes: Record<string, string[]>, from: string, to: string): boolean {
-  return (likes[to] || []).includes(from);
-}
-
 // ── Colors ─────────────────────────────────────────────
 export const COLORS = [
   '#ff6b35', '#4ecdc4', '#ffe66d', '#f7fff7', '#6b5ce7',
@@ -628,7 +605,7 @@ export const PERSON_COLORS = COLORS;
 // All additive. Existing exports above stay intact.
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Identifier for a single measurement event across the team (used by social layer) */
+/** Identifier for a single measurement event across the team */
 export function entryKeyOf(date: string, name: string): string {
   return `${date}_${name}`;
 }

@@ -6,6 +6,7 @@ import { useActiveUser } from '@/lib/useActiveUser';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { PersonalMetrics } from '@/components/dashboard/PersonalMetrics';
 import { PersonalHistory } from '@/components/dashboard/PersonalHistory';
+import { TeamFeed } from '@/components/dashboard/TeamFeed';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -15,9 +16,6 @@ import { DashboardSkeleton } from '@/components/ui/Skeleton';
  *                        (greutate, BF, muscle, visceral, apă +
  *                        4 măsurători gender-aware). Click → modal detalii.
  *   2. PersonalHistory — ultimele logs tabular + pills personal-trend.
- *
- * KpiCards section was retired: its 4 metrics duplicated the first 4
- * tiles in PersonalMetrics. Tiles use the same visual language now.
  */
 export default function Home() {
   const { loading, people } = useShapeData();
@@ -29,6 +27,7 @@ export default function Home() {
     const idx = people.findIndex((p) => p.name === activeUser);
     return PERSON_COLORS[(idx < 0 ? 0 : idx) % PERSON_COLORS.length];
   }, [people, activeUser]);
+
   if (loading) return <DashboardSkeleton />;
   if (!activeUser) return null;
   if (!me) {
@@ -44,11 +43,15 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-3 lg:gap-4 max-w-6xl mx-auto w-full">
       <div className="fade-in-up delay-0">
-        <PersonalMetrics person={me} accent={meColor} viewer={loggedInUser} />
+        <PersonalMetrics person={me} accent={meColor} />
       </div>
 
       <div className="fade-in-up delay-1">
         <PersonalHistory person={me} />
+      </div>
+
+      <div className="fade-in-up delay-2">
+        <TeamFeed people={people} currentUser={loggedInUser} />
       </div>
     </div>
   );

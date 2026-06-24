@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { ADMIN_NAMES } from '@/lib/shape';
 
 const ACTIVE_USER_KEY = 'shapesquad_active_user';
-const ADMIN_NAMES = ['Petrica', 'Cosmin']; // admins (case-sensitive)
 const USER_CHANGE_EVENT = 'shapesquad:user-change';
 
 export function useActiveUser() {

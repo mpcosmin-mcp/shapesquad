@@ -25,7 +25,26 @@ export function Sparkline({
 
   const present = values.filter((v): v is number => v != null);
   if (present.length < 2) {
-    return <div className={cn('text-[10px] text-[var(--color-fg-faint)] italic', className)}>insuficient</div>;
+    // 0 points → faint dash. 1 point → subtle baseline marker (dashed line + dot),
+    // reads as "starting point" instead of an error-looking "insuficient".
+    if (present.length === 0) {
+      return <div className={cn('num text-[11px] text-[var(--color-fg-faint)]', className)}>—</div>;
+    }
+    return (
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className={cn('overflow-visible select-none', className)}
+        aria-hidden
+      >
+        <line
+          x1={width * 0.15} y1={height / 2} x2={width * 0.85} y2={height / 2}
+          stroke={color} strokeWidth={1} strokeDasharray="2 3" opacity={0.25} strokeLinecap="round"
+        />
+        <circle cx={width / 2} cy={height / 2} r={2.5} fill={color} />
+      </svg>
+    );
   }
 
   const min = Math.min(...present);

@@ -1,65 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import {
+  kvReady, getAllLikes, getLikes, setLikes,
+} from '@/lib/social-store';
+import {
+  DEFAULT_REACTION, isReactionEmoji, toggleReaction,
+} from '@/lib/reactions';
 
 /**
- * Generic likes — Redis hash `shape:likes`.
+ * Entry reactions storage in Upstash Redis.
  *
- *   field = targetKey (free-form: `user:Petrica`, `metric:Petrica:bodyFat`, ...)
- *   value = JSON-stringified `string[]` of users who liked it.
+ * Redis hash `social:likes`
+ *   field = entryKey (`${date}_${name}`)
+ *   value = JSON-stringified ReactionMap (emoji → string[])
  *
- * GET → full map { likes: Record<string, string[]> }.
- * POST { targetKey, user } → toggles the like, returns { targetKey, likes }.
+ * GET  — return full map (all entries)
+ * POST { entryKey, user, emoji? } — toggle one emoji for user, return new map
+ *
+ * Returns 503 when redis is not configured (no KV env vars).
+ * The client SocialProvider handles 503 gracefully (localStorage-only mode).
  */
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const HASH_KEY = 'shape:likes';
-type LikesMap = Record<string, string[]>;
-
-function decodeLikes(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw as string[];
-  if (typeof raw === 'string') {
-    try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; }
-    catch { return []; }
-  }
-  return [];
-}
-
-function kvUnavailable(err: unknown): NextResponse {
-  console.error('[/api/social/likes] KV unavailable', err);
+function unavailable(): NextResponse {
   return NextResponse.json(
-    { error: 'kv-unavailable', message: 'Vercel KV not configured. See SOCIAL_SYNC.md.', likes: {} },
+    { error: 'kv-unavailable', reactions: {} },
     { status: 503 },
   );
 }
 
 export async function GET() {
+  if (!kvReady()) return unavailable();
   try {
-    const all = await kv.hgetall<Record<string, unknown>>(HASH_KEY);
-    const out: LikesMap = {};
-    if (all) for (const [k, v] of Object.entries(all)) out[k] = decodeLikes(v);
-    return NextResponse.json({ likes: out });
+    const reactions = await getAllLikes();
+    return NextResponse.json({ reactions });
   } catch (err) {
-    return kvUnavailable(err);
+    console.error('[/api/social/likes] GET error', err);
+    return unavailable();
   }
 }
 
 export async function POST(req: NextRequest) {
+  if (!kvReady()) return unavailable();
   try {
-    const body = await req.json() as { targetKey?: string; user?: string };
-    const { targetKey, user } = body;
-    if (!targetKey || !user) {
-      return NextResponse.json({ error: 'missing targetKey or user' }, { status: 400 });
+    const body = await req.json() as { entryKey?: string; user?: string; emoji?: string };
+    const { entryKey, user } = body;
+    const emoji = body.emoji ?? DEFAULT_REACTION;
+
+    if (!entryKey || !user) {
+      return NextResponse.json({ error: 'missing entryKey or user' }, { status: 400 });
     }
-    const current = decodeLikes(await kv.hget(HASH_KEY, targetKey));
-    const next = current.includes(user)
-      ? current.filter((u) => u !== user)
-      : [...current, user];
-    if (next.length === 0) await kv.hdel(HASH_KEY, targetKey);
-    else await kv.hset(HASH_KEY, { [targetKey]: JSON.stringify(next) });
-    return NextResponse.json({ targetKey, likes: next });
+    if (!isReactionEmoji(emoji)) {
+      return NextResponse.json({ error: 'invalid emoji' }, { status: 400 });
+    }
+
+    const current = await getLikes(entryKey);
+    const next = toggleReaction(current, emoji, user);
+    await setLikes(entryKey, next);
+
+    return NextResponse.json({ entryKey, reactions: next });
   } catch (err) {
-    return kvUnavailable(err);
+    console.error('[/api/social/likes] POST error', err);
+    return unavailable();
   }
 }

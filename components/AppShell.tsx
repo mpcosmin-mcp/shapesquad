@@ -19,7 +19,7 @@ import { LoginPicker } from '@/components/layout/LoginPicker';
  *   └─────────────────────────────────────────────────────┘
  *
  * Two identities, decoupled:
- *   • loggedInUser = WHO YOU ARE (the liker) — set once at login.
+ *   • loggedInUser = WHO YOU ARE — set once at login, drives the gate.
  *   • activeUser   = WHO YOU'RE VIEWING — switchable via SquadBar.
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
+import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { submitEntry } from '@/lib/shape';
 import { Lock, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -37,6 +38,7 @@ const FEMALE_FIELDS = [
 
 export default function LogPage() {
   const { people, refresh } = useShapeData();
+  const { isAdmin, mounted } = useLoggedInUser();
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState('');
   const [pinErr, setPinErr] = useState(false);
@@ -100,7 +102,11 @@ export default function LogPage() {
     }
   }
 
-  if (!unlocked) {
+  // Don't flash the PIN card before localStorage resolves (admins would see it blink).
+  if (!mounted) return null;
+
+  // Admins (logged-in identity) skip the PIN. Non-admins hitting /log directly still get gated.
+  if (!unlocked && !isAdmin) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <Card className="p-6 max-w-sm w-full text-center anim-scale">

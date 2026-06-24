@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'ShapeSquad — body composition tracker',
     short_name: 'ShapeSquad',
-    description: 'Body composition tracker for the squad. Logs, charts.',
+    description: 'Body composition tracker for the squad. Logs, charts, progress.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -25,6 +25,6 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any',
       },
     ],
-    categories: ['health', 'fitness', 'social', 'productivity'],
+    categories: ['health', 'fitness', 'productivity'],
   };
 }

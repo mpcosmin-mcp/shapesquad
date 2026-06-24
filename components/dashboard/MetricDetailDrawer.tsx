@@ -5,8 +5,6 @@ import type { Entry, MetricKey } from '@/lib/shape';
 import { personalDeltaColor } from '@/lib/shape';
 import { fmtDate } from '@/lib/utils';
 import { TeamChart } from '@/components/ui/TeamChart';
-import { LikeButton } from '@/components/ui/LikeButton';
-import { likeKey } from '@/lib/likes';
 
 /**
  * Metric Detail Modal — health-tracker style deep-dive for ONE metric.
@@ -31,12 +29,11 @@ export interface MetricSpec {
 }
 
 export function MetricDetailDrawer({
-  spec, entries, personName, viewer, onClose, specs, onNavigate,
+  spec, entries, personName, onClose, specs, onNavigate,
 }: {
   spec: MetricSpec | null;
   entries: Entry[];
   personName: string;
-  viewer: string;
   onClose: () => void;
   /** Ordered list of all open-able metrics — enables ‹ › + pill nav + arrow keys */
   specs?: MetricSpec[];
@@ -161,15 +158,6 @@ export function MetricDetailDrawer({
                   <ChevronRight size={16} strokeWidth={2} />
                 </button>
               </>
-            )}
-            {personName !== viewer && (
-              <LikeButton
-                targetKey={likeKey.metric(personName, spec.key)}
-                by={viewer}
-                size="md"
-                mode="pill"
-                label={`${personName} · ${spec.label}`}
-              />
             )}
             <button
               onClick={onClose}

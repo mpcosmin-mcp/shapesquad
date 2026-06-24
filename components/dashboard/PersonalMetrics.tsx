@@ -6,15 +6,14 @@ import {
 } from '@/lib/shape';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { Avi } from '@/components/ui/Avi';
-import { LikeButton } from '@/components/ui/LikeButton';
-import { likeKey } from '@/lib/likes';
 import { MetricDetailDrawer, type MetricSpec } from '@/components/dashboard/MetricDetailDrawer';
+import { masuratori } from '@/lib/utils';
 
 /**
- * Personal Metrics — minimalist grid of mini-modules for the logged-in user.
+ * Personal Metrics — minimalist grid of mini-modules for the active user.
  *
- * Click any tile → opens MetricDetailDrawer (right side, ~40% screen on
- * desktop, full-screen on mobile) with the full history for that metric.
+ * Click any tile → opens MetricDetailDrawer with the full history for
+ * that metric.
  *
  * Gender-aware: M sees biceps/piept/spate/fesieri; F sees biceps/piept/talie/fesieri.
  */
@@ -50,9 +49,8 @@ const MEASURE_SPECS_F: Spec[] = [
   { key: 'fesieri', label: 'Fesieri', unit: 'cm', lowerBetter: false, decimals: 1, colorOf: () => '#fbbf24' },
 ];
 
-export function PersonalMetrics({ person, accent, viewer }: { person: Person; accent: string; viewer: string }) {
+export function PersonalMetrics({ person, accent }: { person: Person; accent: string }) {
   const firstName = person.name.split(/\s+/)[0];
-  const isOwn = person.name === viewer; // viewing your own data → hide self-likes
   const sortedAsc = useMemo(
     () => [...person.entries].sort((a, b) => a.date.localeCompare(b.date)),
     [person.entries],
@@ -114,7 +112,7 @@ export function PersonalMetrics({ person, accent, viewer }: { person: Person; ac
               </span>
             </div>
             <div className="text-[11px] text-[var(--color-fg-muted)] num mt-0.5">
-              {sortedAsc.length} măsurători · progresul tău
+              {masuratori(sortedAsc.length)} · progresul tău
             </div>
           </div>
         </div>
@@ -126,14 +124,11 @@ export function PersonalMetrics({ person, accent, viewer }: { person: Person; ac
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {tiles.map((t) => (
             <MiniTile
               key={t.key}
               tile={t}
-              personName={person.name}
-              viewer={viewer}
-              canLike={!isOwn}
               onOpen={() => setOpenSpec({
                 key: t.key as MetricKey,
                 label: t.label,
@@ -152,7 +147,6 @@ export function PersonalMetrics({ person, accent, viewer }: { person: Person; ac
         spec={openSpec}
         entries={person.entries}
         personName={person.name}
-        viewer={viewer}
         onClose={() => setOpenSpec(null)}
         specs={drawerSpecs}
         onNavigate={setOpenSpec}
@@ -217,12 +211,9 @@ function round(n: number, dec: number): number {
 }
 
 function MiniTile({
-  tile, personName, viewer, canLike, onOpen,
+  tile, onOpen,
 }: {
   tile: Tile;
-  personName: string;
-  viewer: string;
-  canLike: boolean;
   onOpen: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -281,20 +272,18 @@ function MiniTile({
       </div>
 
       <div className="flex items-center justify-between gap-1 pt-1 border-t border-[var(--color-border)]/60">
-        <DeltaLine label="start" delta={tile.deltaStart} unit={tile.unit} color={tile.deltaStartColor} dec={tile.decimals} />
-        <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
+        {tile.deltaPrev == null ? (
+          <span className="mx-auto text-[9px] uppercase tracking-wider font-bold text-[var(--color-fg-faint)]">
+            primă măsurătoare
+          </span>
+        ) : (
+          <>
+            <DeltaLine label="start" delta={tile.deltaStart} unit={tile.unit} color={tile.deltaStartColor} dec={tile.decimals} />
+            <DeltaLine label="prev"  delta={tile.deltaPrev}  unit={tile.unit} color={tile.deltaPrevColor}  dec={tile.decimals} />
+          </>
+        )}
       </div>
       </button>
-      {canLike && (
-        <div className="absolute top-1 right-1.5">
-          <LikeButton
-            targetKey={likeKey.metric(personName, tile.key)}
-            by={viewer}
-            size="sm"
-            label={`${personName} · ${tile.label}`}
-          />
-        </div>
-      )}
 
       {/* Hover preview — desktop peek: bigger chart + deltas + target + verdict */}
       {hovered && (
