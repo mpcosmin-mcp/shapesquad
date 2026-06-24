@@ -53,11 +53,14 @@ export function PersonalMetrics({
   person,
   accent,
   showHeader = true,
+  large = false,
 }: {
   person: Person;
   accent: string;
   /** Set false when rendering inside PeekModal (header is provided by the modal itself) */
   showHeader?: boolean;
+  /** Larger tiles + bigger charts + fewer columns — used in the peek modal */
+  large?: boolean;
 }) {
   const firstName = person.name.split(/\s+/)[0];
   const sortedAsc = useMemo(
@@ -104,7 +107,7 @@ export function PersonalMetrics({
 
   return (
     <>
-      <section className="card px-4 sm:px-5 py-4">
+      <section className={large ? '' : 'card px-4 sm:px-5 py-4'}>
         {/* Active user header — shown on main page, suppressed inside PeekModal */}
         {showHeader && (
           <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
@@ -135,11 +138,12 @@ export function PersonalMetrics({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <div className={large ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2'}>
           {tiles.map((t) => (
             <MiniTile
               key={t.key}
               tile={t}
+              large={large}
               onOpen={() => setOpenSpec({
                 key: t.key as MetricKey,
                 label: t.label,
@@ -222,10 +226,11 @@ function round(n: number, dec: number): number {
 }
 
 function MiniTile({
-  tile, onOpen,
+  tile, onOpen, large = false,
 }: {
   tile: Tile;
   onOpen: () => void;
+  large?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -251,19 +256,19 @@ function MiniTile({
     >
       <button
         onClick={onOpen}
-        className="text-left w-full px-3 py-2.5 flex flex-col gap-1.5 cursor-pointer rounded-xl"
+        className={`text-left w-full flex flex-col cursor-pointer rounded-xl ${large ? 'px-4 py-4 gap-2.5' : 'px-3 py-2.5 gap-1.5'}`}
         aria-label={`Deschide detalii ${tile.label}`}
       >
       <div className="flex items-baseline justify-between gap-1">
-        <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate">
+        <span className={`uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate ${large ? 'text-[11px]' : 'text-[9px]'}`}>
           {tile.label}
         </span>
-        <span className="text-[9px] num text-[var(--color-fg-faint)]">{tile.unit}</span>
+        <span className={`num text-[var(--color-fg-faint)] ${large ? 'text-[11px]' : 'text-[9px]'}`}>{tile.unit}</span>
       </div>
 
       <div className="flex items-end justify-between gap-2">
         <span
-          className="num font-bold leading-none text-2xl tracking-tight"
+          className={`num font-bold leading-none tracking-tight ${large ? 'text-4xl' : 'text-2xl'}`}
           style={{ color: tile.current == null ? 'var(--color-fg-faint)' : tile.color }}
         >
           {tile.current == null
@@ -277,8 +282,8 @@ function MiniTile({
           dates={tile.dates}
           unit={tile.unit}
           color={tile.color}
-          width={56}
-          height={20}
+          width={large ? 120 : 56}
+          height={large ? 44 : 20}
         />
       </div>
 
@@ -296,8 +301,10 @@ function MiniTile({
       </div>
       </button>
 
-      {/* Hover preview — desktop peek: bigger chart + deltas + target + verdict */}
-      {hovered && (
+      {/* Hover preview — desktop peek: bigger chart + deltas + target + verdict.
+          Suppressed in large mode (tiles are already big; an absolute popover would
+          clip inside the peek modal). */}
+      {hovered && !large && (
         <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 z-30 w-60 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl shadow-black/40 p-3 pointer-events-none fade-in-up">
           <div className="flex items-baseline justify-between gap-2 mb-2">
             <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)] truncate">{tile.label}</span>

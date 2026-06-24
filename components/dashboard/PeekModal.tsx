@@ -74,7 +74,7 @@ export function PeekModal({
        * Desktop: centered card (max-w-2xl, rounded-2xl).
        */}
       <div
-        className="relative z-10 w-full sm:max-w-2xl max-h-[92dvh] sm:max-h-[88dvh] overflow-y-auto
+        className="relative z-10 w-full sm:w-[88vw] lg:w-[75vw] sm:max-w-6xl max-h-[92dvh] sm:max-h-[90dvh] overflow-y-auto
           rounded-t-3xl sm:rounded-2xl
           border border-[var(--color-border)]
           bg-[var(--color-card)]
@@ -135,7 +135,7 @@ export function PeekModal({
         <div className="px-4 sm:px-5 py-4 space-y-4">
           {/* Metrics grid — showHeader=false, the modal header above is the header */}
           {person.entries.length > 0 ? (
-            <PersonalMetrics person={person} accent={accent} showHeader={false} />
+            <PersonalMetrics person={person} accent={accent} showHeader={false} large />
           ) : (
             <div className="text-sm text-[var(--color-fg-muted)] italic text-center py-6">
               {firstName} nu are nicio măsurătoare înregistrată încă.
