@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
-const LOG_PIN = 'shapesquad2025';
+const LOG_PASSWORD = 'vinclu-823';
 
 type Gender = 'M' | 'F';
 
@@ -102,42 +102,64 @@ export default function LogPage() {
     }
   }
 
-  // Don't flash the PIN card before localStorage resolves (admins would see it blink).
+  // Don't flash a gate before localStorage resolves.
   if (!mounted) return null;
 
-  // Admins (logged-in identity) skip the PIN. Non-admins hitting /log directly still get gated.
-  if (!unlocked && !isAdmin) {
+  // Viewing the app is open to everyone; LOGGING is admin-only.
+  // Non-admins can't log at all — no PIN bypass, no password prompt.
+  if (!isAdmin) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <Card className="p-6 max-w-sm w-full text-center anim-scale">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-[var(--color-warn)]/10 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-[var(--color-warn)]" />
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-[var(--color-bad)]/10 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-[var(--color-bad)]" />
           </div>
-          <h2 className="text-lg font-bold text-[var(--color-fg)] mb-1">Admin Only</h2>
-          <p className="text-[11px] text-[var(--color-fg-muted)] mb-4">Introdu PIN-ul pentru logging</p>
+          <h2 className="text-lg font-bold text-[var(--color-fg)] mb-1">Doar admin</h2>
+          <p className="text-[12px] text-[var(--color-fg-muted)] mb-4 leading-relaxed">
+            Măsurătorile le loghează doar Petrică. Tu folosești liber restul aplicației.
+          </p>
+          <Button onClick={() => { window.location.href = '/'; }} variant="secondary" className="w-full">
+            ← Înapoi la dashboard
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Admin must enter the password every visit — this is the real gate for logging.
+  if (!unlocked) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <Card className="p-6 max-w-sm w-full text-center anim-scale">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-[var(--color-accent)]/10 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-[var(--color-accent)]" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--color-fg)] mb-1">Parolă admin</h2>
+          <p className="text-[11px] text-[var(--color-fg-muted)] mb-4">Introdu parola ca să loghezi măsurători</p>
           <Input
             type="password"
-            placeholder="PIN"
+            placeholder="Parolă"
             value={pin}
             onChange={(e) => { setPin(e.target.value); setPinErr(false); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                if (pin === LOG_PIN) setUnlocked(true);
+                if (pin === LOG_PASSWORD) setUnlocked(true);
                 else setPinErr(true);
               }
             }}
             className={`text-center mb-3 ${pinErr ? '!border-[var(--color-bad)]' : ''}`}
+            autoFocus
           />
-          {pinErr && <p className="text-xs text-[var(--color-bad)] font-medium mb-2">PIN greșit</p>}
+          {pinErr && <p className="text-xs text-[var(--color-bad)] font-medium mb-2">Parolă greșită</p>}
           <Button
             onClick={() => {
-              if (pin === LOG_PIN) setUnlocked(true);
+              if (pin === LOG_PASSWORD) setUnlocked(true);
               else setPinErr(true);
             }}
             variant="primary"
             className="w-full"
           >
-            Unlock
+            Deblochează
           </Button>
         </Card>
       </div>
