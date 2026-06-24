@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-// Cache the Apps Script response for 60s at the Vercel edge — instant for all users
-export const revalidate = 60;
+// Always dynamic — never prerendered at build time, so a slow Apps Script call can't
+// time out the production build (the prerender would call Sheets and fail past 60s).
+// CDN caching still comes from the Cache-Control header set in the GET response below.
+export const dynamic = 'force-dynamic';
 
 const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
