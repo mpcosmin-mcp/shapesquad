@@ -29,7 +29,7 @@ export interface MetricSpec {
 }
 
 export function MetricDetailDrawer({
-  spec, entries, personName, onClose, specs, onNavigate,
+  spec, entries, personName, onClose, specs, onNavigate, compact = false,
 }: {
   spec: MetricSpec | null;
   entries: Entry[];
@@ -39,6 +39,8 @@ export function MetricDetailDrawer({
   specs?: MetricSpec[];
   /** Jump to another metric without closing the drawer */
   onNavigate?: (next: MetricSpec) => void;
+  /** Smaller chart + denser history + narrower panel. Used in the peek flow. */
+  compact?: boolean;
 }) {
   useEffect(() => {
     if (!spec) return;
@@ -113,7 +115,7 @@ export function MetricDetailDrawer({
           role="dialog"
           aria-modal="true"
           aria-label={`Detalii ${spec.label}`}
-          className="pointer-events-auto bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl shadow-black/60 flex flex-col overflow-hidden anim-scale w-full h-full sm:h-auto sm:max-h-[88vh] sm:w-[560px] lg:w-[640px] sm:rounded-2xl"
+          className={`pointer-events-auto bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl shadow-black/60 flex flex-col overflow-hidden anim-scale w-full h-full sm:h-auto sm:rounded-2xl ${compact ? 'sm:max-h-[80vh] sm:w-[460px] lg:w-[520px]' : 'sm:max-h-[88vh] sm:w-[560px] lg:w-[640px]'}`}
         >
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[var(--color-border)]"
@@ -191,7 +193,7 @@ export function MetricDetailDrawer({
         )}
 
         {/* Scroll body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
+        <div className={`flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 ${compact ? 'space-y-3.5' : 'space-y-5'}`}>
           {data ? (
             <>
               {/* Stats row */}
@@ -214,7 +216,7 @@ export function MetricDetailDrawer({
                 <TeamChart
                   series={[{ name: spec.label, color: spec.color, values: data.values }]}
                   dates={data.dates}
-                  height={220}
+                  height={compact ? 150 : 220}
                   target={spec.target}
                   targetLabel="target"
                   unit={spec.unit}
@@ -244,10 +246,10 @@ export function MetricDetailDrawer({
                         return (
                           <div
                             key={row.date}
-                            className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2"
+                            className={`grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 ${compact ? 'py-1.5' : 'py-2'}`}
                           >
                             <span className="text-xs text-[var(--color-fg)]">{fmtDate(row.date)}</span>
-                            <span className="num text-sm font-bold text-right" style={{ color: spec.color }}>
+                            <span className={`num font-bold text-right ${compact ? 'text-xs' : 'text-sm'}`} style={{ color: spec.color }}>
                               {fmtVal(row.v, spec.decimals)}{spec.unit}
                             </span>
                             <span className="num text-xs text-right font-semibold" style={{ color: dColor }}>

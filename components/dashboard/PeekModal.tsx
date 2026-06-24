@@ -124,7 +124,7 @@ export function PeekModal({
           </div>
           <button
             onClick={onClose}
-            className="tap p-2 rounded-xl hover:bg-[var(--color-surface)] transition-colors text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] shrink-0"
+            className="tap p-2 rounded-xl hover:bg-[var(--color-surface)] transition-colors duration-150 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
             aria-label="Închide"
           >
             <X size={18} strokeWidth={2} />

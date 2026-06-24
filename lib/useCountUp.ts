@@ -16,6 +16,11 @@ export function useCountUp(to: number | null, duration = 700, decimals = 1): num
       setVal(0);
       return;
     }
+    // Respect prefers-reduced-motion
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setVal(to);
+      return;
+    }
     // Skip animation if target is identical to last target
     if (lastTarget.current != null && Math.abs(lastTarget.current - to) < 0.0001) {
       setVal(to);

@@ -8,6 +8,7 @@ import { Sparkline } from '@/components/ui/Sparkline';
 import { Avi } from '@/components/ui/Avi';
 import { MetricDetailDrawer, type MetricSpec } from '@/components/dashboard/MetricDetailDrawer';
 import { masuratori } from '@/lib/utils';
+import { useCountUp } from '@/lib/useCountUp';
 
 /**
  * Personal Metrics — minimalist grid of mini-modules for the active user.
@@ -139,21 +140,22 @@ export function PersonalMetrics({
         </div>
 
         <div className={large ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2'}>
-          {tiles.map((t) => (
-            <MiniTile
-              key={t.key}
-              tile={t}
-              large={large}
-              onOpen={() => setOpenSpec({
-                key: t.key as MetricKey,
-                label: t.label,
-                unit: t.unit,
-                lowerBetter: t.lowerBetter,
-                decimals: t.decimals,
-                color: t.color,
-                target: t.target,
-              })}
-            />
+          {tiles.map((t, pos) => (
+            <div key={t.key} className={!large ? `fade-in-up delay-${Math.min(pos, 4)}` : undefined}>
+              <MiniTile
+                tile={t}
+                large={large}
+                onOpen={() => setOpenSpec({
+                  key: t.key as MetricKey,
+                  label: t.label,
+                  unit: t.unit,
+                  lowerBetter: t.lowerBetter,
+                  decimals: t.decimals,
+                  color: t.color,
+                  target: t.target,
+                })}
+              />
+            </div>
           ))}
         </div>
       </section>
@@ -165,6 +167,7 @@ export function PersonalMetrics({
         onClose={() => setOpenSpec(null)}
         specs={drawerSpecs}
         onNavigate={setOpenSpec}
+        compact={large}
       />
     </>
   );
@@ -233,6 +236,7 @@ function MiniTile({
   large?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const display = useCountUp(tile.current, 700, tile.decimals);
 
   // One-line verdict for the hover preview.
   const verdict = (() => {
@@ -256,7 +260,7 @@ function MiniTile({
     >
       <button
         onClick={onOpen}
-        className={`text-left w-full flex flex-col cursor-pointer rounded-xl ${large ? 'px-4 py-4 gap-2.5' : 'px-3 py-2.5 gap-1.5'}`}
+        className={`text-left w-full flex flex-col cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-card)] ${large ? 'px-4 py-4 gap-2.5' : 'px-3 py-2.5 gap-1.5'}`}
         aria-label={`Deschide detalii ${tile.label}`}
       >
       <div className="flex items-baseline justify-between gap-1">
@@ -274,8 +278,8 @@ function MiniTile({
           {tile.current == null
             ? '—'
             : tile.decimals === 0
-              ? Math.round(tile.current)
-              : tile.current.toFixed(tile.decimals)}
+              ? Math.round(display)
+              : display.toFixed(tile.decimals)}
         </span>
         <Sparkline
           values={tile.series}

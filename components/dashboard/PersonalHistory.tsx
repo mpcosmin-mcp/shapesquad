@@ -54,7 +54,7 @@ export function PersonalHistory({ person, limit = 6 }: { person: Person; limit?:
             const idxInAsc = sortedAsc.findIndex((x) => x.date === e.date);
             const status = rowProgressStatus(person, idxInAsc);
             return (
-              <tr key={e.date} className="border-b border-[var(--color-border)]/60 last:border-b-0">
+              <tr key={e.date} className="border-b border-[var(--color-border)]/60 last:border-b-0 transition-colors duration-150 hover:bg-[var(--color-surface)]/50">
                 <td className="align-middle text-xs text-[var(--color-fg)] py-2.5">{fmtDate(e.date)}</td>
                 <td className="align-middle num font-bold text-base text-right py-2.5 pl-4">
                   {e.kg?.toFixed(1) ?? '—'}

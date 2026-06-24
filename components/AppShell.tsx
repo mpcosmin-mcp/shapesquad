@@ -97,7 +97,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Main dashboard — always the logged-in user's data */}
         <main className="flex-1 min-w-0 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-5 pb-24 sm:pb-28">
-          {children}
+          <div className="max-w-screen-xl mx-auto w-full">
+            {children}
+          </div>
         </main>
       </div>
 

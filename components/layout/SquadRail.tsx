@@ -53,22 +53,23 @@ export function SquadRail({
       aria-label="Membrii echipei"
     >
       <div className="label px-2 mb-1">squad</div>
-      {sorted.map(({ p, idx }) => {
+      {sorted.map(({ p, idx }, pos) => {
         const isSelf = p.name === loggedInUser;
         const isActive = peekTarget === p.name;
         return (
-          <RailChip
-            key={p.name}
-            person={p}
-            color={PERSON_COLORS[idx % PERSON_COLORS.length]}
-            isSelf={isSelf}
-            isActive={isActive}
-            allPeople={people}
-            onClick={() => {
-              if (isSelf) return;
-              onPeek(isActive ? null : p.name);
-            }}
-          />
+          <div key={p.name} className={`fade-in-up delay-${Math.min(pos, 4)}`}>
+            <RailChip
+              person={p}
+              color={PERSON_COLORS[idx % PERSON_COLORS.length]}
+              isSelf={isSelf}
+              isActive={isActive}
+              allPeople={people}
+              onClick={() => {
+                if (isSelf) return;
+                onPeek(isActive ? null : p.name);
+              }}
+            />
+          </div>
         );
       })}
     </aside>
@@ -102,12 +103,12 @@ function RailChip({
     <button
       onClick={onClick}
       disabled={isSelf}
-      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl border transition-all text-left
+      className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl border transition-all duration-150 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]
         ${isSelf
           ? 'opacity-70 cursor-default border-transparent bg-[var(--color-surface)]'
           : isActive
-            ? 'border-[var(--color-accent)]/50 ring-1 ring-[var(--color-accent)]/20'
-            : 'border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+            ? 'border-[var(--color-accent)]/50 ring-1 ring-[var(--color-accent)]/20 hover:-translate-y-0.5 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]'
+            : 'border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-surface)] hover:-translate-y-0.5 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)]'
         }`}
       style={isActive
         ? { background: `linear-gradient(135deg, ${color}18, transparent 70%)` }
