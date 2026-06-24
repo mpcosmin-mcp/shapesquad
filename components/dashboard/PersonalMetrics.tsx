@@ -49,7 +49,16 @@ const MEASURE_SPECS_F: Spec[] = [
   { key: 'fesieri', label: 'Fesieri', unit: 'cm', lowerBetter: false, decimals: 1, colorOf: () => '#fbbf24' },
 ];
 
-export function PersonalMetrics({ person, accent }: { person: Person; accent: string }) {
+export function PersonalMetrics({
+  person,
+  accent,
+  showHeader = true,
+}: {
+  person: Person;
+  accent: string;
+  /** Set false when rendering inside PeekModal (header is provided by the modal itself) */
+  showHeader?: boolean;
+}) {
   const firstName = person.name.split(/\s+/)[0];
   const sortedAsc = useMemo(
     () => [...person.entries].sort((a, b) => a.date.localeCompare(b.date)),
@@ -96,26 +105,28 @@ export function PersonalMetrics({ person, accent }: { person: Person; accent: st
   return (
     <>
       <section className="card px-4 sm:px-5 py-4">
-        {/* Active user — big & clear who you're viewing */}
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
-          <Avi name={person.name} color={accent} size="lg" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight truncate" style={{ color: accent }}>
-                {firstName}
-              </h2>
-              <span
-                className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                style={{ background: `${accent}22`, color: accent }}
-              >
-                activ
-              </span>
-            </div>
-            <div className="text-[11px] text-[var(--color-fg-muted)] num mt-0.5">
-              {masuratori(sortedAsc.length)} · progresul tău
+        {/* Active user header — shown on main page, suppressed inside PeekModal */}
+        {showHeader && (
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
+            <Avi name={person.name} color={accent} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight truncate" style={{ color: accent }}>
+                  {firstName}
+                </h2>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                  style={{ background: `${accent}22`, color: accent }}
+                >
+                  activ
+                </span>
+              </div>
+              <div className="text-[11px] text-[var(--color-fg-muted)] num mt-0.5">
+                {masuratori(sortedAsc.length)} · progresul tău
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-1">
           <div className="label">click pe un modul pentru detalii</div>
