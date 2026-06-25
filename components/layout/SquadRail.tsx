@@ -1,11 +1,14 @@
 'use client';
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { Flame } from 'lucide-react';
 import {
   type Person,
   PERSON_COLORS, firstNameOf, calcXP, calcStreak, getLevelTier,
 } from '@/lib/shape';
+import { ARIA_SCHEDULE, getWeekStart, getWeekDates, isToday, isPast, type Activity } from '@/lib/activities';
 import { Avi } from '@/components/ui/Avi';
+import { AriaLogo } from '@/components/ui/AriaLogo';
 import { useShapeData } from '@/lib/useShapeData';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
 
@@ -72,6 +75,9 @@ export function SquadRail({
           </div>
         );
       })}
+
+      {/* Aria partnership section */}
+      <AriaRailSection />
     </aside>
   );
 }
@@ -148,4 +154,68 @@ function RailChip({
       </div>
     </button>
   );
+}
+
+/* ─── Aria partnership card in the rail ─────────────────── */
+
+function AriaRailSection() {
+  const today = getWeekStart(new Date());
+  const dates = getWeekDates(today);
+  const todayStr = dates.find(isToday);
+
+  const todaySessions = todayStr
+    ? ARIA_SCHEDULE.filter((a) => {
+        const d = new Date(todayStr);
+        return a.day === ((d.getDay() + 6) % 7); // JS getDay: 0=Sun → our 0=Mon
+      })
+    : [];
+
+  const upcoming = todaySessions.length > 0 ? todaySessions : getNextSessions(dates);
+
+  return (
+    <>
+      <div className="my-2 border-t border-[var(--color-border)]/50" />
+      <Link
+        href="/activitati"
+        className="group flex flex-col items-center gap-2 px-2 py-3 rounded-xl border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-surface)] transition-all"
+      >
+        <AriaLogo size={52} />
+        <div className="text-center">
+          <div className="text-xs font-bold text-[var(--color-fg)] group-hover:text-[var(--color-good)] transition-colors">
+            Activități Aria
+          </div>
+          <div className="text-[8px] uppercase tracking-widest text-[var(--color-fg-faint)] mt-0.5">
+            Parteneriat Aumovio
+          </div>
+        </div>
+        {upcoming.length > 0 && (
+          <div className="w-full space-y-1">
+            {upcoming.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--color-surface)]/60 text-[9px]"
+              >
+                <span>{a.emoji}</span>
+                <span className="font-semibold truncate" style={{ color: a.color }}>{a.name}</span>
+                <span className="num text-[var(--color-fg-faint)] ml-auto shrink-0">{a.startTime}</span>
+              </div>
+            ))}
+            <div className="text-[8px] text-center text-[var(--color-fg-faint)]">
+              {todaySessions.length > 0 ? 'azi' : 'următoarele'}
+            </div>
+          </div>
+        )}
+      </Link>
+    </>
+  );
+}
+
+function getNextSessions(dates: string[]): Activity[] {
+  for (const d of dates) {
+    if (isPast(d)) continue;
+    const dayIdx = (new Date(d).getDay() + 6) % 7;
+    const sessions = ARIA_SCHEDULE.filter((a) => a.day === dayIdx);
+    if (sessions.length > 0) return sessions;
+  }
+  return [];
 }

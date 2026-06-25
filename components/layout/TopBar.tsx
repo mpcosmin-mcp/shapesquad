@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { LogOut, PlusCircle, CalendarDays } from 'lucide-react';
+import { LogOut, PlusCircle } from 'lucide-react';
+import { AriaLogo } from '@/components/ui/AriaLogo';
 import { PERSON_COLORS } from '@/lib/shape';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { useShapeData } from '@/lib/useShapeData';
@@ -41,9 +42,9 @@ export function TopBar() {
             href="/activitati"
             title="Activități Aria"
             aria-label="Activități Aria"
-            className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border border-[var(--color-good)]/40 bg-[var(--color-good)]/10 text-[var(--color-good)] hover:bg-[var(--color-good)]/20 transition-colors mr-0.5"
+            className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full border border-[var(--color-good)]/40 bg-[var(--color-good)]/10 text-[var(--color-good)] hover:bg-[var(--color-good)]/20 transition-colors mr-0.5"
           >
-            <CalendarDays size={14} />
+            <AriaLogo size={20} />
             <span className="text-[11px] font-bold hidden sm:inline">Aria</span>
           </Link>
           {isAdmin && (
