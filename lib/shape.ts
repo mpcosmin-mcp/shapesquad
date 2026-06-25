@@ -75,10 +75,13 @@ export function isDemoData(entries: Entry[]): boolean {
 }
 
 export async function submitEntry(entry: Record<string, any>): Promise<boolean> {
-  if (!API) return false;
   try {
-    await fetch(API, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) });
-    return true;
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    return res.ok;
   } catch { return false; }
 }
 
