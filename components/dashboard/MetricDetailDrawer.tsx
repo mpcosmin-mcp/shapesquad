@@ -171,9 +171,11 @@ export function MetricDetailDrawer({
           </div>
         </div>
 
-        {/* Module switcher — jump straight to any metric */}
+        {/* Module switcher — jump straight to any metric.
+            Right-edge fade hints there are more parameters to scroll to. */}
         {canNav && (
-          <div className="shrink-0 flex gap-1.5 px-4 sm:px-5 py-2 border-b border-[var(--color-border)] overflow-x-auto no-scrollbar">
+          <div className="relative shrink-0 border-b border-[var(--color-border)]">
+            <div className="flex gap-1.5 px-4 sm:px-5 py-2 overflow-x-auto no-scrollbar">
             {specs!.map((s) => {
               const active = s.key === spec.key;
               return (
@@ -189,6 +191,9 @@ export function MetricDetailDrawer({
                 </button>
               );
             })}
+            </div>
+            {/* fade hint — there are more parameters to the right */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[var(--color-bg)] to-transparent" />
           </div>
         )}
 
