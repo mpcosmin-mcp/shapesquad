@@ -115,7 +115,7 @@ export function MetricDetailDrawer({
           role="dialog"
           aria-modal="true"
           aria-label={`Detalii ${spec.label}`}
-          className={`pointer-events-auto bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl shadow-black/60 flex flex-col overflow-hidden anim-scale w-full h-full sm:h-auto sm:rounded-2xl ${compact ? 'sm:max-h-[80vh] sm:w-[460px] lg:w-[520px]' : 'sm:max-h-[88vh] sm:w-[560px] lg:w-[640px]'}`}
+          className={`pointer-events-auto bg-[var(--color-bg)] border border-[var(--color-border)] shadow-2xl shadow-black/60 flex flex-col overflow-hidden anim-scale w-full h-full sm:rounded-2xl ${compact ? 'sm:h-[62vh] sm:w-[440px] lg:w-[500px]' : 'sm:h-[82vh] sm:w-[560px] lg:w-[640px]'}`}
         >
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3 border-b border-[var(--color-border)]"
@@ -192,12 +192,12 @@ export function MetricDetailDrawer({
           </div>
         )}
 
-        {/* Scroll body */}
-        <div className={`flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 ${compact ? 'space-y-3.5' : 'space-y-5'}`}>
+        {/* Body — FIXED height; header/stats/chart are pinned, only the history scrolls */}
+        <div className={`flex-1 min-h-0 flex flex-col px-4 sm:px-5 py-4 ${compact ? 'gap-3.5' : 'gap-5'}`}>
           {data ? (
             <>
               {/* Stats row */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <Stat label="min" value={fmtVal(data.min, spec.decimals)} unit={spec.unit} />
                 <Stat label="max" value={fmtVal(data.max, spec.decimals)} unit={spec.unit} />
                 <Stat label="avg" value={fmtVal(data.avg, spec.decimals)} unit={spec.unit} />
@@ -211,7 +211,7 @@ export function MetricDetailDrawer({
               </div>
 
               {/* Chart */}
-              <div>
+              <div className="shrink-0">
                 <div className="label mb-2">Evoluție · luni consecutive</div>
                 <TeamChart
                   series={[{ name: spec.label, color: spec.color, values: data.values }]}
@@ -225,11 +225,12 @@ export function MetricDetailDrawer({
                 />
               </div>
 
-              {/* History table */}
-              <div>
-                <div className="label mb-2">Istoric · toate măsurătorile</div>
-                <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
+              {/* History table — fills remaining height and scrolls INTERNALLY, so the
+                  sub-module stays a FIXED size no matter how many logs the metric has */}
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className="label mb-2 shrink-0">Istoric · toate măsurătorile</div>
+                <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-[var(--color-border)]">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 bg-[var(--color-surface)] border-b border-[var(--color-border)] sticky top-0 z-10">
                     <span className="label">Data</span>
                     <span className="label text-right">{spec.label}</span>
                     <span className="label text-right">Δ prev</span>
