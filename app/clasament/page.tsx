@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Avi } from '@/components/ui/Avi';
 import { ReactionBar } from '@/components/dashboard/ReactionBar';
 import { EntryReactions } from '@/components/dashboard/EntryReactions';
+import { PeekModal } from '@/components/dashboard/PeekModal';
 import { Trophy, TrendingUp, Crown } from 'lucide-react';
 
 type Mode = 'progres' | 'acum';
@@ -76,6 +77,9 @@ export default function ClasamentPage() {
 
   const [metric, setMetric] = useState<BoardKey>('bodyFat');
   const [mode, setMode] = useState<Mode>('progres');
+  // Click a person on the board → their full history in the same PeekModal
+  // used by the Squad rail. Clicking yourself does nothing (that's your dashboard).
+  const [peekTarget, setPeekTarget] = useState<string | null>(null);
 
   const def = metric === 'bmi'
     ? { label: 'BMI', icon: '⚖️', unit: '' }
@@ -93,6 +97,12 @@ export default function ClasamentPage() {
       .filter((b) => b.rows.length > 0),
     [genders, people, metric, mode],
   );
+
+  const peekPerson = peekTarget ? people.find((p) => p.name === peekTarget) ?? null : null;
+  const peekIndex = peekTarget ? people.findIndex((p) => p.name === peekTarget) : -1;
+  const peek = (name: string) => {
+    if (name !== loggedInUser) setPeekTarget(name);
+  };
 
   if (loading && people.length === 0) {
     return <div className="text-center py-20 text-[var(--color-fg-muted)] text-sm anim-pulse">se încarcă clasamentul…</div>;
@@ -194,6 +204,7 @@ export default function ClasamentPage() {
               level={calcXP(champ.person, maxEntries).level}
               solo={rest.length === 0}
               currentUser={loggedInUser || ''}
+              onPeek={() => peek(champ.person.name)}
             />
 
             {rest.length > 0 && (
@@ -206,6 +217,7 @@ export default function ClasamentPage() {
                       row={r}
                       allNames={allNames}
                       currentUser={loggedInUser || ''}
+                      onPeek={() => peek(r.person.name)}
                     />
                   ))}
                 </ul>
@@ -214,6 +226,17 @@ export default function ClasamentPage() {
           </section>
         );
       })}
+
+      {/* History peek — same modal as the Squad rail */}
+      {peekPerson && (
+        <PeekModal
+          person={peekPerson}
+          personIndex={peekIndex >= 0 ? peekIndex : 0}
+          allPeople={people}
+          loggedInUser={loggedInUser || ''}
+          onClose={() => setPeekTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -221,7 +244,7 @@ export default function ClasamentPage() {
 /* ─── Champion card (#1 within their gender group) ───────── */
 
 function ChampionCard({
-  def, person, allNames, primary, sub, good, level, solo, currentUser,
+  def, person, allNames, primary, sub, good, level, solo, currentUser, onPeek,
 }: {
   def: { label: string; icon: string; unit: string };
   person: Person;
@@ -232,9 +255,11 @@ function ChampionCard({
   level: number;
   solo: boolean;
   currentUser: string;
+  onPeek: () => void;
 }) {
   const color = personColor(person.name, allNames);
   const tier = getLevelTier(level);
+  const isSelf = person.name === currentUser;
   return (
     <Card
       className="p-4 sm:p-5 relative overflow-hidden"
@@ -243,7 +268,16 @@ function ChampionCard({
       <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest font-bold text-[#ffd700] flex items-center gap-1">
         <Crown className="w-3.5 h-3.5" /> {solo ? def.label : `#1 ${def.label}`}
       </div>
-      <div className="flex items-center gap-3">
+      {/* Person area is the click target — reactions below stay independent */}
+      <button
+        onClick={onPeek}
+        disabled={isSelf}
+        className={`w-full flex items-center gap-3 text-left rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${
+          isSelf ? 'cursor-default' : 'tap hover:-translate-y-0.5'
+        }`}
+        title={isSelf ? undefined : `Vezi istoricul lui ${firstNameOf(person.name)}`}
+        aria-label={isSelf ? undefined : `Vezi istoricul lui ${firstNameOf(person.name)}`}
+      >
         <div className="relative">
           <Avi name={person.name} color={color} size="lg" />
           {/* No crown emoji when alone in the group — being #1 of 1 isn't a win */}
@@ -266,7 +300,7 @@ function ChampionCard({
             {sub ?? `${def.icon} ${def.label}`}
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Congratulate the champion — emoji + comments (keyed to their latest entry,
           so it's the same thread as on the dashboard) */}
@@ -283,20 +317,31 @@ function ChampionCard({
 /* ─── Ranked row with compact emoji reactions ────────────── */
 
 function RankRow({
-  pos, row, allNames, currentUser,
+  pos, row, allNames, currentUser, onPeek,
 }: {
   pos: number;
   row: BoardRow;
   allNames: string[];
   currentUser: string;
+  onPeek: () => void;
 }) {
   const { toggleEntryReaction, entryReactionsFor } = useSocial();
   const color = personColor(row.person.name, allNames);
   const key = entryKeyOf(row.person.latest.date, row.person.name);
+  const isSelf = row.person.name === currentUser;
 
   return (
     <li className="px-2 py-2.5">
-      <div className="flex items-center gap-3">
+      {/* Person row is the click target — the ReactionBar below stays independent */}
+      <button
+        onClick={onPeek}
+        disabled={isSelf}
+        className={`w-full flex items-center gap-3 text-left rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${
+          isSelf ? 'cursor-default' : 'tap hover:bg-[var(--color-surface)]'
+        }`}
+        title={isSelf ? undefined : `Vezi istoricul lui ${firstNameOf(row.person.name)}`}
+        aria-label={isSelf ? undefined : `Vezi istoricul lui ${firstNameOf(row.person.name)}`}
+      >
         <span className="w-6 text-center text-sm font-bold num text-[var(--color-fg-muted)] shrink-0">
           {MEDAL[pos - 1] ?? `${pos}`}
         </span>
@@ -313,7 +358,7 @@ function RankRow({
           </div>
           {row.sub && <div className="num text-[10px] text-[var(--color-fg-faint)]">{row.sub}</div>}
         </div>
-      </div>
+      </button>
       <div className="pl-9 mt-1">
         <ReactionBar
           size="sm"
