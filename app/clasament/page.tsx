@@ -3,17 +3,18 @@
 import { useMemo, useState } from 'react';
 import {
   type MetricKey, type Person,
-  firstNameOf, personColor, calcXP, getLevelTier, f, fDate,
+  firstNameOf, personColor, calcXP, getLevelTier, f,
 } from '@/lib/shape';
 import {
-  BOARD_METRICS, metricDef, heightsConfigured, bmiCategory,
-  rankByCurrent, rankByProgress, rankByBmiCurrent, rankByBmiProgress, buildFeed,
-  type Highlight,
+  BOARD_METRICS, metricDef, heightsConfigured,
+  rankByCurrent, rankByProgress, rankByBmiCurrent, rankByBmiProgress,
 } from '@/lib/leaderboard';
 import { useShapeData } from '@/lib/useShapeData';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
+import { useSocial, entryKeyOf } from '@/lib/social';
 import { Card } from '@/components/ui/Card';
 import { Avi } from '@/components/ui/Avi';
+import { ReactionBar } from '@/components/dashboard/ReactionBar';
 import { EntryReactions } from '@/components/dashboard/EntryReactions';
 import { Trophy, TrendingUp, Crown } from 'lucide-react';
 
@@ -93,8 +94,6 @@ export default function ClasamentPage() {
     [genders, people, metric, mode],
   );
 
-  const feed = useMemo(() => buildFeed(people), [people]);
-
   if (loading && people.length === 0) {
     return <div className="text-center py-20 text-[var(--color-fg-muted)] text-sm anim-pulse">se încarcă clasamentul…</div>;
   }
@@ -107,12 +106,12 @@ export default function ClasamentPage() {
           <Trophy className="w-5 h-5 text-[#ffd700]" /> Clasament
         </h1>
         <p className="text-[11px] text-[var(--color-fg-muted)] mt-0.5">
-          top achieveri pe fiecare modul · băieții și fetele concurează separat
+          top achieveri pe fiecare modul · băieții și fetele concurează separat · reacționează cu emoji
         </p>
       </div>
 
       {/* Metric pills — kg has no board of its own (weight alone ≠ fitness);
-          it comes back as BMI once heights are configured. */}
+          it competes as BMI instead. */}
       <div className="flex flex-wrap gap-1.5 fade-in-up delay-1">
         {BOARD_METRICS.map((m) => {
           const active = m.key === metric;
@@ -187,71 +186,34 @@ export default function ClasamentPage() {
 
             <ChampionCard
               def={def}
-              name={champ.person.name}
+              person={champ.person}
               allNames={allNames}
               primary={champ.primary}
               sub={champ.sub}
               good={champ.good}
               level={calcXP(champ.person, maxEntries).level}
               solo={rest.length === 0}
+              currentUser={loggedInUser || ''}
             />
 
             {rest.length > 0 && (
               <Card className="p-2">
                 <ul className="divide-y divide-[var(--color-border)]/50">
-                  {rest.map((r, i) => {
-                    const pos = i + 2; // champion was #1
-                    const color = personColor(r.person.name, allNames);
-                    return (
-                      <li key={r.person.name} className="flex items-center gap-3 px-2 py-2.5">
-                        <span className="w-6 text-center text-sm font-bold num text-[var(--color-fg-muted)] shrink-0">
-                          {MEDAL[pos - 1] ?? `${pos}`}
-                        </span>
-                        <Avi name={r.person.name} color={color} size="sm" />
-                        <span className="font-bold text-sm flex-1 min-w-0 truncate" style={{ color }}>
-                          {firstNameOf(r.person.name)}
-                        </span>
-                        <div className="text-right shrink-0">
-                          <div
-                            className="num font-bold text-sm"
-                            style={{ color: r.good === true ? 'var(--color-good)' : r.good === false ? 'var(--color-bad)' : 'var(--color-fg)' }}
-                          >
-                            {r.primary}
-                          </div>
-                          {r.sub && <div className="num text-[10px] text-[var(--color-fg-faint)]">{r.sub}</div>}
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {rest.map((r, i) => (
+                    <RankRow
+                      key={r.person.name}
+                      pos={i + 2}
+                      row={r}
+                      allNames={allNames}
+                      currentUser={loggedInUser || ''}
+                    />
+                  ))}
                 </ul>
               </Card>
             )}
           </section>
         );
       })}
-
-      {/* Feed */}
-      <div className="mt-2 fade-in-up">
-        <h2 className="label px-1 mb-2">feed · realizări</h2>
-        {feed.length === 0 ? (
-          <Card className="p-6 text-center text-xs text-[var(--color-fg-muted)]">
-            Încă nimic de sărbătorit — loghează măsurători și apar aici.
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {feed.map((item) => (
-              <FeedCard
-                key={`${item.date}_${item.name}`}
-                name={item.name}
-                date={item.date}
-                highlights={item.highlights}
-                allNames={allNames}
-                currentUser={loggedInUser || ''}
-              />
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -259,18 +221,19 @@ export default function ClasamentPage() {
 /* ─── Champion card (#1 within their gender group) ───────── */
 
 function ChampionCard({
-  def, name, allNames, primary, sub, good, level, solo,
+  def, person, allNames, primary, sub, good, level, solo, currentUser,
 }: {
   def: { label: string; icon: string; unit: string };
-  name: string;
+  person: Person;
   allNames: string[];
   primary: string;
   sub: string | null;
   good: boolean | null;
   level: number;
   solo: boolean;
+  currentUser: string;
 }) {
-  const color = personColor(name, allNames);
+  const color = personColor(person.name, allNames);
   const tier = getLevelTier(level);
   return (
     <Card
@@ -282,12 +245,12 @@ function ChampionCard({
       </div>
       <div className="flex items-center gap-3">
         <div className="relative">
-          <Avi name={name} color={color} size="lg" />
+          <Avi name={person.name} color={color} size="lg" />
           {/* No crown emoji when alone in the group — being #1 of 1 isn't a win */}
           {!solo && <span className="absolute -top-1.5 -right-1.5 text-lg" aria-hidden>👑</span>}
         </div>
         <div className="min-w-0">
-          <div className="font-bold text-lg leading-tight" style={{ color }}>{firstNameOf(name)}</div>
+          <div className="font-bold text-lg leading-tight" style={{ color }}>{firstNameOf(person.name)}</div>
           <div className="text-[10px] num text-[var(--color-fg-muted)] flex items-center gap-1">
             <span style={{ color: tier.color }}>{tier.icon} Lv {level} · {tier.name}</span>
           </div>
@@ -304,64 +267,61 @@ function ChampionCard({
           </div>
         </div>
       </div>
-    </Card>
-  );
-}
 
-/* ─── Feed card ──────────────────────────────────────────── */
-
-const BADGE_STYLE: Record<Highlight['kind'], { bg: string; fg: string }> = {
-  record:   { bg: 'var(--color-accent)', fg: 'var(--color-accent)' },
-  progress: { bg: 'var(--color-good)',   fg: 'var(--color-good)' },
-  leader:   { bg: '#ffd700',             fg: '#ffd700' },
-};
-
-function FeedCard({
-  name, date, highlights, allNames, currentUser,
-}: {
-  name: string;
-  date: string;
-  highlights: Highlight[];
-  allNames: string[];
-  currentUser: string;
-}) {
-  const color = personColor(name, allNames);
-  return (
-    <Card className="p-3.5">
-      <div className="flex items-center gap-2.5">
-        <Avi name={name} color={color} size="sm" />
-        <div className="min-w-0 flex-1">
-          <span className="font-bold text-sm" style={{ color }}>{firstNameOf(name)}</span>
-          <span className="text-[10px] num text-[var(--color-fg-faint)] ml-2">{fDate(date)}</span>
-        </div>
-      </div>
-
-      {highlights.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5 mt-2.5">
-          {highlights.map((h, i) => {
-            const s = BADGE_STYLE[h.kind];
-            return (
-              <span
-                key={`${h.kind}-${h.metric}-${i}`}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold"
-                style={{ background: `${s.bg}18`, color: s.fg, border: `1px solid ${s.bg}33` }}
-              >
-                <span aria-hidden>{h.kind === 'record' ? '🏅' : h.kind === 'leader' ? '👑' : h.icon}</span>
-                {h.text}
-              </span>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="text-[11px] text-[var(--color-fg-muted)] mt-2">a logat măsurători noi 📝</p>
-      )}
-
+      {/* Congratulate the champion — emoji + comments (keyed to their latest entry,
+          so it's the same thread as on the dashboard) */}
       <EntryReactions
-        entryDate={date}
-        entryName={name}
+        entryDate={person.latest.date}
+        entryName={person.name}
         currentUser={currentUser}
         allNames={allNames}
       />
     </Card>
+  );
+}
+
+/* ─── Ranked row with compact emoji reactions ────────────── */
+
+function RankRow({
+  pos, row, allNames, currentUser,
+}: {
+  pos: number;
+  row: BoardRow;
+  allNames: string[];
+  currentUser: string;
+}) {
+  const { toggleEntryReaction, entryReactionsFor } = useSocial();
+  const color = personColor(row.person.name, allNames);
+  const key = entryKeyOf(row.person.latest.date, row.person.name);
+
+  return (
+    <li className="px-2 py-2.5">
+      <div className="flex items-center gap-3">
+        <span className="w-6 text-center text-sm font-bold num text-[var(--color-fg-muted)] shrink-0">
+          {MEDAL[pos - 1] ?? `${pos}`}
+        </span>
+        <Avi name={row.person.name} color={color} size="sm" />
+        <span className="font-bold text-sm flex-1 min-w-0 truncate" style={{ color }}>
+          {firstNameOf(row.person.name)}
+        </span>
+        <div className="text-right shrink-0">
+          <div
+            className="num font-bold text-sm"
+            style={{ color: row.good === true ? 'var(--color-good)' : row.good === false ? 'var(--color-bad)' : 'var(--color-fg)' }}
+          >
+            {row.primary}
+          </div>
+          {row.sub && <div className="num text-[10px] text-[var(--color-fg-faint)]">{row.sub}</div>}
+        </div>
+      </div>
+      <div className="pl-9 mt-1">
+        <ReactionBar
+          size="sm"
+          reactions={entryReactionsFor(key)}
+          currentUser={currentUser}
+          onToggle={(emoji) => toggleEntryReaction(key, emoji, currentUser)}
+        />
+      </div>
+    </li>
   );
 }
