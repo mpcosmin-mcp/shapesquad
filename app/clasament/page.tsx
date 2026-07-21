@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import {
-  METRICS, type MetricKey,
+  type MetricKey, type Person,
   firstNameOf, personColor, calcXP, getLevelTier, f, fDate,
 } from '@/lib/shape';
 import {
-  metricDef, rankByCurrent, rankByProgress, buildFeed,
+  BOARD_METRICS, metricDef, heightsConfigured, bmiCategory,
+  rankByCurrent, rankByProgress, rankByBmiCurrent, rankByBmiProgress, buildFeed,
   type Highlight,
 } from '@/lib/leaderboard';
 import { useShapeData } from '@/lib/useShapeData';
@@ -17,44 +18,86 @@ import { EntryReactions } from '@/components/dashboard/EntryReactions';
 import { Trophy, TrendingUp, Crown } from 'lucide-react';
 
 type Mode = 'progres' | 'acum';
+type BoardKey = MetricKey | 'bmi';
 const MEDAL = ['🥇', '🥈', '🥉'];
+
+const GENDER_META = {
+  M: { label: 'băieți', icon: '♂', color: '#3b82f6' },
+  F: { label: 'fete', icon: '♀', color: '#ec4899' },
+} as const;
+
+interface BoardRow {
+  person: Person;
+  primary: string;
+  sub: string | null;
+  good: boolean | null;
+}
+
+/** Rank one gender group on the selected board (metric or BMI). */
+function boardRows(group: Person[], key: BoardKey, mode: Mode): BoardRow[] {
+  if (key === 'bmi') {
+    if (mode === 'acum') {
+      return rankByBmiCurrent(group).map((r) => ({
+        person: r.person,
+        primary: f(r.bmi, 1),
+        sub: r.category,
+        good: r.healthy ? true : null,
+      }));
+    }
+    return rankByBmiProgress(group).map((r) => ({
+      person: r.person,
+      primary: `${r.improvement > 0 ? '+' : ''}${f(r.improvement, 1)}`,
+      sub: `BMI ${f(r.from, 1)} → ${f(r.to, 1)}`,
+      good: r.improvement > 0.05 ? true : r.improvement < -0.05 ? false : null,
+    }));
+  }
+  const def = metricDef(key);
+  if (mode === 'acum') {
+    return rankByCurrent(group, key).map((r) => ({
+      person: r.person,
+      primary: `${f(r.value, 1)}${def.unit}`,
+      sub: null,
+      good: null,
+    }));
+  }
+  return rankByProgress(group, key).map((r) => ({
+    person: r.person,
+    primary: `${r.improvement > 0 ? '+' : ''}${f(r.improvement, 1)}${def.unit}`,
+    sub: `${f(r.from, 1)} → ${f(r.to, 1)}`,
+    good: r.improvement > 0.05 ? true : r.improvement < -0.05 ? false : null,
+  }));
+}
 
 export default function ClasamentPage() {
   const { people, loading } = useShapeData();
   const { loggedInUser } = useLoggedInUser();
   const allNames = useMemo(() => people.map((p) => p.name), [people]);
 
-  const [metric, setMetric] = useState<MetricKey>('bodyFat');
+  const [metric, setMetric] = useState<BoardKey>('bodyFat');
   const [mode, setMode] = useState<Mode>('progres');
 
-  const def = metricDef(metric);
+  const def = metric === 'bmi'
+    ? { label: 'BMI', icon: '⚖️', unit: '' }
+    : metricDef(metric);
   const maxEntries = Math.max(1, ...people.map((p) => p.entries.length));
 
-  const rows = useMemo(() => {
-    if (mode === 'acum') {
-      return rankByCurrent(people, metric).map((r) => ({
-        person: r.person,
-        primary: `${f(r.value, 1)}${def.unit}`,
-        sub: null as string | null,
-        good: null as boolean | null,
-      }));
-    }
-    return rankByProgress(people, metric).map((r) => ({
-      person: r.person,
-      primary: `${r.improvement > 0 ? '+' : ''}${f(r.improvement, 1)}${def.unit}`,
-      sub: `${f(r.from, 1)} → ${f(r.to, 1)}`,
-      good: r.improvement > 0.05 ? true : r.improvement < -0.05 ? false : null,
-    }));
-  }, [people, metric, mode, def.unit]);
+  // ♂ / ♀ ranked separately — physiology differs, so does the competition.
+  const genders = useMemo(
+    () => (['M', 'F'] as const).filter((g) => people.some((p) => p.gender === g)),
+    [people],
+  );
+  const boards = useMemo(
+    () => genders
+      .map((g) => ({ g, rows: boardRows(people.filter((p) => p.gender === g), metric, mode) }))
+      .filter((b) => b.rows.length > 0),
+    [genders, people, metric, mode],
+  );
 
   const feed = useMemo(() => buildFeed(people), [people]);
 
   if (loading && people.length === 0) {
     return <div className="text-center py-20 text-[var(--color-fg-muted)] text-sm anim-pulse">se încarcă clasamentul…</div>;
   }
-
-  const champ = rows[0];
-  const rest = rows.slice(1);
 
   return (
     <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
@@ -64,13 +107,14 @@ export default function ClasamentPage() {
           <Trophy className="w-5 h-5 text-[#ffd700]" /> Clasament
         </h1>
         <p className="text-[11px] text-[var(--color-fg-muted)] mt-0.5">
-          top achieveri pe fiecare modul · felicitați-vă în feed cu like &amp; comment
+          top achieveri pe fiecare modul · băieții și fetele concurează separat
         </p>
       </div>
 
-      {/* Metric pills */}
+      {/* Metric pills — kg has no board of its own (weight alone ≠ fitness);
+          it comes back as BMI once heights are configured. */}
       <div className="flex flex-wrap gap-1.5 fade-in-up delay-1">
-        {METRICS.map((m) => {
+        {BOARD_METRICS.map((m) => {
           const active = m.key === metric;
           return (
             <button
@@ -87,6 +131,19 @@ export default function ClasamentPage() {
             </button>
           );
         })}
+        {heightsConfigured() && (
+          <button
+            onClick={() => setMetric('bmi')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold border transition-all tap ${
+              metric === 'bmi'
+                ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/12 text-[var(--color-fg)]'
+                : 'border-[var(--color-border)] text-[var(--color-fg-muted)] hover:border-[var(--color-fg-dim)]'
+            }`}
+          >
+            <span aria-hidden>⚖️</span>
+            BMI
+          </button>
+        )}
       </div>
 
       {/* Mode toggle */}
@@ -108,54 +165,70 @@ export default function ClasamentPage() {
         ))}
       </div>
 
-      {/* Champion */}
-      {champ ? (
-        <ChampionCard
-          def={def}
-          name={champ.person.name}
-          allNames={allNames}
-          primary={champ.primary}
-          sub={champ.sub}
-          good={champ.good}
-          level={calcXP(champ.person, maxEntries).level}
-        />
-      ) : (
+      {/* Boards — one per gender with data on this metric */}
+      {boards.length === 0 && (
         <Card className="p-6 text-center text-xs text-[var(--color-fg-muted)]">
-          Nu sunt destule date pentru {def.label} încă.
+          {metric === 'bmi' && mode === 'progres'
+            ? 'Nu sunt destule măsurători de greutate pentru progres BMI încă.'
+            : `Nu sunt destule date pentru ${def.label} încă.`}
         </Card>
       )}
+      {boards.map(({ g, rows }) => {
+        const gm = GENDER_META[g];
+        const champ = rows[0];
+        const rest = rows.slice(1);
+        return (
+          <section key={g} className="flex flex-col gap-2 fade-in-up delay-3">
+            {genders.length > 1 && (
+              <h2 className="label px-1 flex items-center gap-1.5">
+                <span style={{ color: gm.color }}>{gm.icon}</span> {gm.label}
+              </h2>
+            )}
 
-      {/* Rest of the ranking */}
-      {rest.length > 0 && (
-        <Card className="p-2 fade-in-up">
-          <ul className="divide-y divide-[var(--color-border)]/50">
-            {rest.map((r, i) => {
-              const pos = i + 2; // champion was #1
-              const color = personColor(r.person.name, allNames);
-              return (
-                <li key={r.person.name} className="flex items-center gap-3 px-2 py-2.5">
-                  <span className="w-6 text-center text-sm font-bold num text-[var(--color-fg-muted)] shrink-0">
-                    {MEDAL[pos - 1] ?? `${pos}`}
-                  </span>
-                  <Avi name={r.person.name} color={color} size="sm" />
-                  <span className="font-bold text-sm flex-1 min-w-0 truncate" style={{ color }}>
-                    {firstNameOf(r.person.name)}
-                  </span>
-                  <div className="text-right shrink-0">
-                    <div
-                      className="num font-bold text-sm"
-                      style={{ color: r.good === true ? 'var(--color-good)' : r.good === false ? 'var(--color-bad)' : 'var(--color-fg)' }}
-                    >
-                      {r.primary}
-                    </div>
-                    {r.sub && <div className="num text-[10px] text-[var(--color-fg-faint)]">{r.sub}</div>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
+            <ChampionCard
+              def={def}
+              name={champ.person.name}
+              allNames={allNames}
+              primary={champ.primary}
+              sub={champ.sub}
+              good={champ.good}
+              level={calcXP(champ.person, maxEntries).level}
+              solo={rest.length === 0}
+            />
+
+            {rest.length > 0 && (
+              <Card className="p-2">
+                <ul className="divide-y divide-[var(--color-border)]/50">
+                  {rest.map((r, i) => {
+                    const pos = i + 2; // champion was #1
+                    const color = personColor(r.person.name, allNames);
+                    return (
+                      <li key={r.person.name} className="flex items-center gap-3 px-2 py-2.5">
+                        <span className="w-6 text-center text-sm font-bold num text-[var(--color-fg-muted)] shrink-0">
+                          {MEDAL[pos - 1] ?? `${pos}`}
+                        </span>
+                        <Avi name={r.person.name} color={color} size="sm" />
+                        <span className="font-bold text-sm flex-1 min-w-0 truncate" style={{ color }}>
+                          {firstNameOf(r.person.name)}
+                        </span>
+                        <div className="text-right shrink-0">
+                          <div
+                            className="num font-bold text-sm"
+                            style={{ color: r.good === true ? 'var(--color-good)' : r.good === false ? 'var(--color-bad)' : 'var(--color-fg)' }}
+                          >
+                            {r.primary}
+                          </div>
+                          {r.sub && <div className="num text-[10px] text-[var(--color-fg-faint)]">{r.sub}</div>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            )}
+          </section>
+        );
+      })}
 
       {/* Feed */}
       <div className="mt-2 fade-in-up">
@@ -183,33 +256,35 @@ export default function ClasamentPage() {
   );
 }
 
-/* ─── Champion card (#1) ─────────────────────────────────── */
+/* ─── Champion card (#1 within their gender group) ───────── */
 
 function ChampionCard({
-  def, name, allNames, primary, sub, good, level,
+  def, name, allNames, primary, sub, good, level, solo,
 }: {
-  def: ReturnType<typeof metricDef>;
+  def: { label: string; icon: string; unit: string };
   name: string;
   allNames: string[];
   primary: string;
   sub: string | null;
   good: boolean | null;
   level: number;
+  solo: boolean;
 }) {
   const color = personColor(name, allNames);
   const tier = getLevelTier(level);
   return (
     <Card
-      className="p-4 sm:p-5 relative overflow-hidden fade-in-up delay-3"
+      className="p-4 sm:p-5 relative overflow-hidden"
       style={{ background: `linear-gradient(135deg, ${color}1f, var(--color-card) 60%)` }}
     >
       <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest font-bold text-[#ffd700] flex items-center gap-1">
-        <Crown className="w-3.5 h-3.5" /> #1 {def.label}
+        <Crown className="w-3.5 h-3.5" /> {solo ? def.label : `#1 ${def.label}`}
       </div>
       <div className="flex items-center gap-3">
         <div className="relative">
           <Avi name={name} color={color} size="lg" />
-          <span className="absolute -top-1.5 -right-1.5 text-lg" aria-hidden>👑</span>
+          {/* No crown emoji when alone in the group — being #1 of 1 isn't a win */}
+          {!solo && <span className="absolute -top-1.5 -right-1.5 text-lg" aria-hidden>👑</span>}
         </div>
         <div className="min-w-0">
           <div className="font-bold text-lg leading-tight" style={{ color }}>{firstNameOf(name)}</div>

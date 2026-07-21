@@ -5,10 +5,44 @@
    app/clasament/ renders these; the social layer (likes/comments) is keyed by
    entry (`${date}_${name}`) and wired separately via <EntryReactions/>.
 
-   Direction: each MetricDef carries `lowerBetter` (body fat, visceral, waist).
-   "Improvement" is always sign-adjusted so a POSITIVE number = good progress.
+   FAIRNESS RULES (why this file looks the way it does):
+   - Men and women are ranked SEPARATELY — body fat, muscle, water and all
+     circumference norms differ physiologically by sex. The page splits every
+     board into ♂ / ♀ sections; this module just ranks whatever group it gets.
+   - Raw weight (kg) is NOT a competition — neither "heaviest" nor "lightest"
+     means fit. It re-enters as BMI (closest to the healthy band wins) once
+     HEIGHTS_CM is filled in.
+   - Direction per metric comes from MetricDef.lowerBetter: body fat, visceral
+     fat and waist (talie) → smaller is better; muscle, water, biceps, back,
+     chest, hips (fesieri) → bigger is better. "Improvement" is always
+     sign-adjusted so a POSITIVE number = good progress.
+   - Gender-specific measurements sort themselves out via data presence:
+     men log spate (not talie), women log talie (not spate) — a group with no
+     samples for a metric simply doesn't rank on it.
    ───────────────────────────────────────────────────────── */
 import { type Person, type MetricKey, type MetricDef, METRICS, f } from './shape';
+
+/** Metrics that make sense as a contest. kg is excluded — see BMI below. */
+export const BOARD_METRICS: MetricDef[] = METRICS.filter((m) => m.key !== 'kg');
+
+/**
+ * name → height in cm (must match the DB `Nume` exactly).
+ * Filling this in unlocks the BMI board — until then raw weight stays out of
+ * the competition entirely. Ex: { 'Petrica': 183, 'Cosmin': 178 }
+ */
+export const HEIGHTS_CM: Record<string, number> = {};
+
+export const heightsConfigured = (): boolean => Object.keys(HEIGHTS_CM).length > 0;
+
+/** Middle of the 18.5–24.9 healthy BMI band — "best" = closest to this. */
+export const HEALTHY_BMI_MID = 21.7;
+
+export function bmiCategory(bmi: number): string {
+  if (bmi < 18.5) return 'Subponderal';
+  if (bmi < 25) return 'Normal';
+  if (bmi < 30) return 'Supraponderal';
+  return 'Obezitate';
+}
 
 export function metricDef(key: MetricKey): MetricDef {
   return METRICS.find((m) => m.key === key) ?? METRICS[0];
@@ -22,7 +56,7 @@ function seriesFor(p: Person, key: MetricKey): { date: string; val: number }[] {
     .filter((x): x is { date: string; val: number } => x.val != null);
 }
 
-/* ─── Leaderboards ───────────────────────────────────────── */
+/* ─── Leaderboards (rank WITHIN the group you pass — page passes per-gender) ── */
 
 export interface CurrentRow {
   person: Person;
@@ -66,6 +100,67 @@ export function rankByProgress(people: Person[], key: MetricKey): ProgressRow[] 
   return rows;
 }
 
+/* ─── BMI board (replaces raw kg once heights are known) ── */
+
+function bmiPoints(p: Person): { first: number; latest: number } | null {
+  const h = HEIGHTS_CM[p.name];
+  if (!h) return null;
+  const s = seriesFor(p, 'kg');
+  if (!s.length) return null;
+  const toBmi = (kg: number) => Math.round((kg / ((h / 100) ** 2)) * 10) / 10;
+  return { first: toBmi(s[0].val), latest: toBmi(s[s.length - 1].val) };
+}
+
+export interface BmiCurrentRow {
+  person: Person;
+  bmi: number;
+  category: string;
+  healthy: boolean;
+}
+
+/** "Best" BMI = closest to the healthy mid — not lowest, not highest. */
+export function rankByBmiCurrent(people: Person[]): BmiCurrentRow[] {
+  const rows = people
+    .map((p) => {
+      const b = bmiPoints(p);
+      if (!b) return null;
+      return {
+        person: p,
+        bmi: b.latest,
+        category: bmiCategory(b.latest),
+        healthy: b.latest >= 18.5 && b.latest < 25,
+      };
+    })
+    .filter((r): r is BmiCurrentRow => r !== null);
+  rows.sort(
+    (a, b) => Math.abs(a.bmi - HEALTHY_BMI_MID) - Math.abs(b.bmi - HEALTHY_BMI_MID),
+  );
+  return rows;
+}
+
+export interface BmiProgressRow {
+  person: Person;
+  from: number;
+  to: number;
+  improvement: number; // how much CLOSER to the healthy band you got (+ = good)
+}
+
+export function rankByBmiProgress(people: Person[]): BmiProgressRow[] {
+  const rows = people
+    .map((p) => {
+      const b = bmiPoints(p);
+      if (!b || b.first === b.latest) return null;
+      const improvement =
+        Math.round(
+          (Math.abs(b.first - HEALTHY_BMI_MID) - Math.abs(b.latest - HEALTHY_BMI_MID)) * 10,
+        ) / 10;
+      return { person: p, from: b.first, to: b.latest, improvement };
+    })
+    .filter((r): r is BmiProgressRow => r !== null);
+  rows.sort((a, b) => b.improvement - a.improvement);
+  return rows;
+}
+
 /* ─── Achievement feed ───────────────────────────────────── */
 
 export type HighlightKind = 'record' | 'progress' | 'leader';
@@ -85,32 +180,45 @@ export interface FeedItem {
   highlights: Highlight[];
 }
 
-/** Body metrics drive the feed highlights (measurements are noisier). */
-const FEED_METRICS = METRICS.filter((m) => m.category === 'body');
+/**
+ * Feed highlights come from body metrics EXCEPT kg — "heaviest/lightest ever"
+ * is not an achievement (cut vs bulk goals differ); fat/visceral/muscle/water
+ * have an unambiguous good direction.
+ */
+const FEED_METRICS = METRICS.filter((m) => m.category === 'body' && m.key !== 'kg');
 
 function threshold(m: MetricDef): number {
   if (m.key === 'visceralFat') return 0.5;
-  if (m.unit === 'kg' || m.unit === 'cm') return 0.5;
   return 0.3;
 }
 
 const arrow = (lowerBetter: boolean, delta: number) =>
   (lowerBetter ? delta < 0 : delta > 0) ? '↓' : '↑';
 
-/** Who currently holds #1 on each body metric → gold "leader" badges. */
+/**
+ * Who currently holds #1 on each body metric → gold "leader" badges.
+ * Computed WITHIN each gender (fair), and only when the group has at least
+ * two people — being #1 in a group of one is not a crown.
+ */
 function computeLeaders(people: Person[]): Record<string, Highlight[]> {
   const out: Record<string, Highlight[]> = {};
-  for (const m of FEED_METRICS) {
-    const ranked = rankByCurrent(people, m.key);
-    if (!ranked.length) continue;
-    const leader = ranked[0].person.name;
-    (out[leader] ||= []).push({
-      kind: 'leader',
-      metric: m.key,
-      label: m.label,
-      icon: m.icon,
-      text: `Lider ${m.label}`,
-    });
+  const bothGenders = new Set(people.map((p) => p.gender)).size > 1;
+  for (const g of ['M', 'F'] as const) {
+    const group = people.filter((p) => p.gender === g);
+    if (group.length < 2) continue;
+    for (const m of FEED_METRICS) {
+      const ranked = rankByCurrent(group, m.key);
+      if (ranked.length < 2) continue;
+      const leader = ranked[0].person.name;
+      const suffix = bothGenders ? (g === 'M' ? ' ♂' : ' ♀') : '';
+      (out[leader] ||= []).push({
+        kind: 'leader',
+        metric: m.key,
+        label: m.label,
+        icon: m.icon,
+        text: `Lider ${m.label}${suffix}`,
+      });
+    }
   }
   return out;
 }
@@ -119,6 +227,7 @@ function computeLeaders(people: Person[]): Record<string, Highlight[]> {
  * Build the feed: one card per notable entry. Always includes each person's
  * latest entry (recent activity + leader badges), plus any historical entry
  * that set a personal record or made real progress. Sorted newest-first.
+ * Records/progress are vs YOUR OWN history — inherently gender-fair.
  */
 export function buildFeed(people: Person[], limit = 40): FeedItem[] {
   const leaders = computeLeaders(people);
