@@ -17,7 +17,7 @@ Team body composition tracking dashboard for IT Software team at Aumovio Sibiu. 
 | Charts | Recharts (AreaChart, LineChart, RadarChart) |
 | Icons | Lucide React |
 | Build | Vite + vite-plugin-singlefile → single HTML output |
-| Backend | Google Sheets via Apps Script (JSONP read, POST write) |
+| Backend | Neon Postgres (measurements, `lib/db.ts`) + Upstash Redis (social/bookings) |
 | Hosting | GitHub Pages via GitHub Actions auto-deploy |
 | Fonts | Montserrat (headings) + JetBrains Mono (data) |
 

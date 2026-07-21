@@ -32,9 +32,6 @@ export const ADMIN_NAMES = ['Petrica', 'Cosmin'];
 export const isAdminName = (name: string | null | undefined): boolean =>
   !!name && ADMIN_NAMES.includes(name);
 
-// ── API ────────────────────────────────────────────────
-export const API = 'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
-
 /**
  * Fetch all measurement data via our own /api/data server route.
  * The route does server-side fetch of Apps Script (no JSONP/CORS issues,

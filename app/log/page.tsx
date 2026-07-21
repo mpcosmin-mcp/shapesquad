@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
 import { submitEntry, verifyLogPassword, type Entry } from '@/lib/shape';
-import { Lock, CheckCircle2, Plus, Save, RotateCcw, X } from 'lucide-react';
+import { Lock, CheckCircle2, Plus, Save, RotateCcw, X, DatabaseBackup } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -97,6 +97,7 @@ export default function LogPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [hasEdits, setHasEdits] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [migrating, setMigrating] = useState(false);
   const [toast, setToast] = useState('');
   const idRef = useRef(0);
 
@@ -131,6 +132,32 @@ export default function LogPage() {
     setToast('Reîncărcat');
     setTimeout(() => setToast(''), 1500);
   };
+
+  // One-time import of the old Google Sheet into Postgres. Idempotent (upsert),
+  // so a double-click is harmless. Requires the DB env var to be set on Vercel.
+  async function runMigration() {
+    if (!confirm('Importă datele din Google Sheets în noua bază de date? (se poate rula de mai multe ori, e sigur)')) return;
+    setMigrating(true);
+    try {
+      const res = await fetch('/api/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setToast(`Migrat ${data.migrated}/${data.total}${data.failed ? ` (${data.failed} eșuate)` : ''} ✅`);
+        await refresh();
+      } else {
+        setToast(`Migrare eșuată: ${data.error || res.status}`);
+      }
+    } catch (e: any) {
+      setToast(`Migrare eșuată: ${e?.message || 'eroare'}`);
+    } finally {
+      setMigrating(false);
+      setTimeout(() => setToast(''), 4000);
+    }
+  }
 
   async function saveAll() {
     const dirty = rows.filter(rowDirty);
@@ -233,7 +260,10 @@ export default function LogPage() {
               {toast}
             </div>
           )}
-          <Button onClick={reload} variant="ghost" size="sm" title="Reîncarcă din Sheets (renunță la editări)">
+          <Button onClick={runMigration} disabled={migrating} variant="ghost" size="sm" title="Import one-time din Google Sheets în baza de date (sigur de repetat)">
+            <DatabaseBackup className="w-3.5 h-3.5" /> {migrating ? 'Se importă…' : 'Import Sheets'}
+          </Button>
+          <Button onClick={reload} variant="ghost" size="sm" title="Reîncarcă din baza de date (renunță la editări)">
             <RotateCcw className="w-3.5 h-3.5" /> Reîncarcă
           </Button>
           <Button onClick={addRow} variant="secondary" size="sm">
@@ -357,8 +387,8 @@ export default function LogPage() {
       </Card>
 
       <p className="text-[10px] text-[var(--color-fg-faint)] px-1">
-        Celulele goale se ignoră la salvare. Rândurile existente se actualizează după Nume + Dată (upsert);
-        pentru asta ai nevoie de <span className="num">doPost</span>-ul din <span className="num">apps-script/Code.gs</span> lipit în Google Apps Script.
+        Celulele goale se ignoră la salvare. Rândurile existente se actualizează după Nume + Dată (upsert),
+        direct în baza de date Postgres. <span className="num">Import Sheets</span> aduce o dată datele vechi din Google Sheets.
       </p>
     </div>
   );
