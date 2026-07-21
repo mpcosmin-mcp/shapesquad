@@ -1,30 +1,44 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from '@/lib/logAuth';
+import { dbReady, ensureSchema, upsertRow } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
-
+/**
+ * Write one measurement row into Neon Postgres (upsert by name + date).
+ *
+ * Security gate: every write must carry the correct `password`, verified here
+ * against LOG_PASSWORD (server-only) and stripped before it touches the DB.
+ * Bypassing the client UI is useless without the secret — this is the real gate.
+ */
 export async function POST(req: Request) {
   try {
+    const secret = process.env.LOG_PASSWORD;
+    if (!secret) {
+      return NextResponse.json(
+        { ok: false, error: 'Logging not configured (LOG_PASSWORD unset)' },
+        { status: 503 },
+      );
+    }
+
     const body = await req.json();
+    const { password, ...entry } = body ?? {};
 
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    if (typeof password !== 'string' || !timingSafeEqual(password, secret)) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const text = await res.text();
-    let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch {}
+    if (!dbReady()) {
+      return NextResponse.json(
+        { ok: false, error: 'DB not configured (DATABASE_URL unset)' },
+        { status: 503 },
+      );
+    }
 
-    return NextResponse.json(
-      { ok: res.ok, status: res.status, body: parsed ?? text },
-      { status: res.ok ? 200 : 502 },
-    );
+    await ensureSchema();
+    await upsertRow(entry);
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || 'Unknown error' },

@@ -1,112 +1,198 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useShapeData } from '@/lib/useShapeData';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
-import { submitEntry } from '@/lib/shape';
-import { Lock, CheckCircle2, RotateCcw } from 'lucide-react';
+import { submitEntry, verifyLogPassword, type Entry } from '@/lib/shape';
+import { Lock, CheckCircle2, Plus, Save, RotateCcw, X, DatabaseBackup } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
-const LOG_PASSWORD = 'vinclu-823';
-
 type Gender = 'M' | 'F';
 
-/* ─── Body composition (everyone) ───────────────────────────────────── */
-const BODY_FIELDS: { key: string; label: string; sheet: string; unit: string; step: string }[] = [
-  { key: 'kg',          label: 'Greutate',     sheet: 'Kg',           unit: 'kg', step: '0.1' },
-  { key: 'bodyFat',     label: 'Body Fat',     sheet: 'Body Fat %',   unit: '%',  step: '0.1' },
-  { key: 'visceralFat', label: 'Visceral',     sheet: 'Visceral Fat', unit: '',   step: '1' },
-  { key: 'muscle',      label: 'Muscle',       sheet: 'Muscle',       unit: '%',  step: '0.1' },
-  { key: 'water',       label: 'Apă',          sheet: 'Water',        unit: '%',  step: '0.1' },
+/* Columns = Sheet headers. `key` matches the Entry field; `sheet` is the
+ * column name sent to Apps Script (and read back by parseRows). */
+const COLS: { key: keyof Entry; label: string; sheet: string; step: string }[] = [
+  { key: 'kg',          label: 'Kg',      sheet: 'Kg',           step: '0.1' },
+  { key: 'bodyFat',     label: 'Fat %',   sheet: 'Body Fat %',   step: '0.1' },
+  { key: 'visceralFat', label: 'Visc',    sheet: 'Visceral Fat', step: '1'   },
+  { key: 'muscle',      label: 'Muscle',  sheet: 'Muscle',       step: '0.1' },
+  { key: 'water',       label: 'Apă',     sheet: 'Water',        step: '0.1' },
+  { key: 'biceps',      label: 'Biceps',  sheet: 'Biceps',       step: '0.5' },
+  { key: 'piept',       label: 'Piept',   sheet: 'Piept',        step: '0.5' },
+  { key: 'spate',       label: 'Spate',   sheet: 'Spate',        step: '0.5' },
+  { key: 'talie',       label: 'Talie',   sheet: 'Talie',        step: '0.5' },
+  { key: 'fesieri',     label: 'Fesieri', sheet: 'Fesieri',      step: '0.5' },
 ];
 
-/* ─── Measurements (gender-dependent) ──────────────────────────────── */
-const MALE_FIELDS = [
-  { key: 'biceps',  label: 'Biceps',  sheet: 'Biceps',  unit: 'cm' },
-  { key: 'piept',   label: 'Piept',   sheet: 'Piept',   unit: 'cm' },
-  { key: 'spate',   label: 'Spate',   sheet: 'Spate',   unit: 'cm' },
-  { key: 'fesieri', label: 'Fesieri', sheet: 'Fesieri', unit: 'cm' },
-];
-const FEMALE_FIELDS = [
-  { key: 'biceps',  label: 'Biceps',  sheet: 'Biceps',  unit: 'cm' },
-  { key: 'piept',   label: 'Piept',   sheet: 'Piept',   unit: 'cm' },
-  { key: 'talie',   label: 'Talie',   sheet: 'Talie',   unit: 'cm' },
-  { key: 'fesieri', label: 'Fesieri', sheet: 'Fesieri', unit: 'cm' },
-];
+interface Row {
+  id: string;
+  name: string;
+  date: string;             // ISO yyyy-mm-dd
+  gender: Gender;
+  vals: Record<string, string>;
+  orig: Record<string, string>;
+  isNew: boolean;
+}
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function buildRows(entries: Entry[]): Row[] {
+  return entries
+    .map((e, i): Row => {
+      const vals: Record<string, string> = {};
+      for (const c of COLS) {
+        const v = e[c.key] as number | null;
+        vals[c.key] = v == null ? '' : String(v);
+      }
+      return {
+        id: `${e.name}__${e.date}__${i}`,
+        name: e.name,
+        date: e.date,
+        gender: e.gender,
+        vals,
+        orig: { ...vals },
+        isNew: false,
+      };
+    })
+    .sort((a, b) => (b.date.localeCompare(a.date)) || a.name.localeCompare(b.name));
+}
+
+const rowDirty = (r: Row) =>
+  r.isNew ? Boolean(r.name.trim()) || COLS.some((c) => (r.vals[c.key] ?? '') !== '')
+          : COLS.some((c) => (r.vals[c.key] ?? '') !== (r.orig[c.key] ?? ''));
+
+const rowHasValue = (r: Row) => COLS.some((c) => (r.vals[c.key] ?? '').trim() !== '');
+
+function rowToEntry(r: Row): Record<string, any> {
+  const entry: Record<string, any> = { Nume: r.name.trim(), Date: r.date, Gender: r.gender };
+  for (const c of COLS) {
+    const raw = (r.vals[c.key] ?? '').replace(',', '.').trim();
+    if (raw !== '' && !isNaN(parseFloat(raw))) entry[c.sheet] = parseFloat(raw);
+  }
+  return entry;
+}
 
 export default function LogPage() {
-  const { people, refresh } = useShapeData();
+  const { entries, refresh } = useShapeData();
   const { isAdmin, mounted } = useLoggedInUser();
+
+  // ── Unlock (server-side verified) ──────────────────────
   const [unlocked, setUnlocked] = useState(false);
-  const [pin, setPin] = useState('');
-  const [pinErr, setPinErr] = useState(false);
-  const names = people.map((p) => p.name);
+  const [password, setPassword] = useState(''); // kept in memory only, never persisted
+  const [pinErr, setPinErr] = useState('');
+  const [checking, setChecking] = useState(false);
 
-  const [form, setForm] = useState<Record<string, string>>({
-    name: names[0] || '',
-    date: new Date().toISOString().slice(0, 10),
-    gender: 'M',
-  });
-  const [submitting, setSubmitting] = useState(false);
+  async function tryUnlock() {
+    if (!password) return;
+    setChecking(true);
+    const ok = await verifyLogPassword(password);
+    setChecking(false);
+    if (ok) { setUnlocked(true); setPinErr(''); }
+    else setPinErr('Parolă greșită (sau server neconfigurat)');
+  }
+
+  // ── Grid state ─────────────────────────────────────────
+  const [rows, setRows] = useState<Row[]>([]);
+  const [hasEdits, setHasEdits] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [migrating, setMigrating] = useState(false);
   const [toast, setToast] = useState('');
-  const [newName, setNewName] = useState(false);
+  const idRef = useRef(0);
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const gender = form.gender as Gender;
-  const measurementFields = gender === 'F' ? FEMALE_FIELDS : MALE_FIELDS;
+  // Seed from server whenever fresh data lands AND we have no pending edits,
+  // so a background refresh never clobbers what you're typing.
+  useEffect(() => {
+    if (!entries.length || hasEdits) return;
+    setRows(buildRows(entries));
+  }, [entries, hasEdits]);
 
-  // Auto-infer gender when picking a known person (most recent entry's gender wins)
-  const onPickName = (name: string) => {
-    setForm((f) => {
-      const p = people.find((x) => x.name === name);
-      return { ...f, name, gender: p?.gender ?? f.gender };
-    });
+  const setVal = (id: string, key: string, v: string) => {
+    setHasEdits(true);
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, vals: { ...r.vals, [key]: v } } : r)));
+  };
+  const setField = (id: string, field: 'name' | 'date' | 'gender', v: string) => {
+    setHasEdits(true);
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: v } : r)));
+  };
+  const addRow = () => {
+    setHasEdits(true);
+    idRef.current += 1;
+    setRows((rs) => [
+      { id: `new_${idRef.current}`, name: '', date: todayISO(), gender: 'M', vals: {}, orig: {}, isNew: true },
+      ...rs,
+    ]);
+  };
+  const removeNewRow = (id: string) => setRows((rs) => rs.filter((r) => r.id !== id));
+
+  const reload = async () => {
+    setHasEdits(false);
+    await refresh();
+    setToast('Reîncărcat');
+    setTimeout(() => setToast(''), 1500);
   };
 
-  async function handleSubmit() {
-    if (!form.name) return;
-    setSubmitting(true);
-    const entry: Record<string, any> = {
-      Nume: form.name,
-      Date: form.date,
-      Gender: form.gender,
-    };
-    // Body composition — always send
-    for (const f of BODY_FIELDS) {
-      if (form[f.key]) entry[f.sheet] = parseFloat(form[f.key]);
-    }
-    // Gender-specific measurements — only those visible for the chosen gender
-    for (const f of measurementFields) {
-      if (form[f.key]) entry[f.sheet] = parseFloat(form[f.key]);
-    }
-    const ok = await submitEntry(entry);
-    setSubmitting(false);
-    if (ok) {
-      setToast('Salvat 💪');
-      setTimeout(() => {
-        setToast('');
-        refresh();
-        // Reset measurement values, keep name + gender + date
-        const cleared: Record<string, string> = {
-          name: form.name,
-          date: new Date().toISOString().slice(0, 10),
-          gender: form.gender,
-        };
-        setForm(cleared);
-      }, 1400);
-    } else {
-      setToast('Demo mode — API neconfigurat');
-      setTimeout(() => setToast(''), 3000);
+  // One-time import of the old Google Sheet into Postgres. Idempotent (upsert),
+  // so a double-click is harmless. Requires the DB env var to be set on Vercel.
+  async function runMigration() {
+    if (!confirm('Importă datele din Google Sheets în noua bază de date? (se poate rula de mai multe ori, e sigur)')) return;
+    setMigrating(true);
+    try {
+      const res = await fetch('/api/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setToast(`Migrat ${data.migrated}/${data.total}${data.failed ? ` (${data.failed} eșuate)` : ''} ✅`);
+        await refresh();
+      } else {
+        setToast(`Migrare eșuată: ${data.error || res.status}`);
+      }
+    } catch (e: any) {
+      setToast(`Migrare eșuată: ${e?.message || 'eroare'}`);
+    } finally {
+      setMigrating(false);
+      setTimeout(() => setToast(''), 4000);
     }
   }
 
-  // Don't flash a gate before localStorage resolves.
+  async function saveAll() {
+    const dirty = rows.filter(rowDirty);
+    const invalid = dirty.filter((r) => r.isNew && (!r.name.trim() || !r.date));
+    if (invalid.length) {
+      setToast('Rândurile noi au nevoie de nume + dată');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
+    const payloads = dirty.filter((r) => r.name.trim() && rowHasValue(r)).map(rowToEntry);
+    if (!payloads.length) {
+      setToast('Nimic de salvat');
+      setTimeout(() => setToast(''), 1800);
+      return;
+    }
+    setSaving(true);
+    let ok = 0;
+    // Sequential — Apps Script is slow and concurrent sheet writes can race.
+    for (const p of payloads) {
+      if (await submitEntry(p, password)) ok += 1;
+    }
+    setSaving(false);
+    if (ok === payloads.length) {
+      setToast(`Salvat ${ok} ${ok === 1 ? 'rând' : 'rânduri'} 💪`);
+      setHasEdits(false);
+      await refresh();
+    } else {
+      setToast(`Salvat ${ok}/${payloads.length} — restul au eșuat`);
+    }
+    setTimeout(() => setToast(''), 3000);
+  }
+
+  // ── Gates ──────────────────────────────────────────────
   if (!mounted) return null;
 
-  // Viewing the app is open to everyone; LOGGING is admin-only.
-  // Non-admins can't log at all — no PIN bypass, no password prompt.
   if (!isAdmin) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
@@ -126,7 +212,6 @@ export default function LogPage() {
     );
   }
 
-  // Admin must enter the password every visit — this is the real gate for logging.
   if (!unlocked) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
@@ -135,227 +220,184 @@ export default function LogPage() {
             <Lock className="w-5 h-5 text-[var(--color-accent)]" />
           </div>
           <h2 className="text-lg font-bold text-[var(--color-fg)] mb-1">Parolă admin</h2>
-          <p className="text-[11px] text-[var(--color-fg-muted)] mb-4">Introdu parola ca să loghezi măsurători</p>
+          <p className="text-[11px] text-[var(--color-fg-muted)] mb-4">Introdu parola ca să deschizi tabelul</p>
           <Input
             type="password"
             placeholder="Parolă"
-            value={pin}
-            onChange={(e) => { setPin(e.target.value); setPinErr(false); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (pin === LOG_PASSWORD) setUnlocked(true);
-                else setPinErr(true);
-              }
-            }}
-            className={`text-center mb-3 ${pinErr ? '!border-[var(--color-bad)]' : ''}`}
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setPinErr(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') tryUnlock(); }}
+            className={`text-center mb-3 w-full ${pinErr ? '!border-[var(--color-bad)]' : ''}`}
             autoFocus
           />
-          {pinErr && <p className="text-xs text-[var(--color-bad)] font-medium mb-2">Parolă greșită</p>}
-          <Button
-            onClick={() => {
-              if (pin === LOG_PASSWORD) setUnlocked(true);
-              else setPinErr(true);
-            }}
-            variant="primary"
-            className="w-full"
-          >
-            Deblochează
+          {pinErr && <p className="text-xs text-[var(--color-bad)] font-medium mb-2">{pinErr}</p>}
+          <Button onClick={tryUnlock} disabled={checking || !password} variant="primary" className="w-full">
+            {checking ? 'Se verifică…' : 'Deblochează'}
           </Button>
         </Card>
       </div>
     );
   }
 
+  const dirtyCount = rows.filter(rowDirty).length;
+
+  // ── Spreadsheet ────────────────────────────────────────
   return (
-    <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
-      <div className="flex items-end justify-between fade-in-up delay-0">
+    <div className="max-w-full mx-auto w-full flex flex-col gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-2 fade-in-up delay-0">
         <div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[var(--color-fg)]">
-            Loghează măsurătoare
+            Tabel măsurători
           </h1>
           <p className="text-[11px] text-[var(--color-fg-muted)] mt-0.5">
-            o dată pe lună · retroactiv permis · măsurătorile se schimbă cu genul
+            editează celulele direct · adaugă rânduri · salvezi tot deodată
           </p>
         </div>
-        {toast && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-good)]/10 border border-[var(--color-good)]/30 text-[var(--color-good)] text-xs font-medium anim-scale">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            {toast}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {toast && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-good)]/10 border border-[var(--color-good)]/30 text-[var(--color-good)] text-xs font-medium anim-scale">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {toast}
+            </div>
+          )}
+          <Button onClick={runMigration} disabled={migrating} variant="ghost" size="sm" title="Import one-time din Google Sheets în baza de date (sigur de repetat)">
+            <DatabaseBackup className="w-3.5 h-3.5" /> {migrating ? 'Se importă…' : 'Import Sheets'}
+          </Button>
+          <Button onClick={reload} variant="ghost" size="sm" title="Reîncarcă din baza de date (renunță la editări)">
+            <RotateCcw className="w-3.5 h-3.5" /> Reîncarcă
+          </Button>
+          <Button onClick={addRow} variant="secondary" size="sm">
+            <Plus className="w-3.5 h-3.5" /> Rând nou
+          </Button>
+          <Button onClick={saveAll} disabled={saving || dirtyCount === 0} variant="primary" size="sm">
+            <Save className="w-3.5 h-3.5" />
+            {saving ? 'Se salvează…' : dirtyCount ? `Salvează (${dirtyCount})` : 'Salvează'}
+          </Button>
+        </div>
       </div>
 
-      <Card className="p-4 sm:p-5 space-y-5 fade-in-up delay-1">
-        {/* Name + Date + Gender row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="label block mb-1.5">Nume</label>
-            {!newName ? (
-              <div className="flex gap-1.5">
-                <select
-                  value={form.name}
-                  onChange={(e) => onPickName(e.target.value)}
-                  className="flex-1 h-10 px-3 rounded-lg bg-[var(--color-card)] text-[var(--color-fg)] border border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)] num text-sm"
-                >
-                  {names.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-                <Button
-                  onClick={() => { setNewName(true); set('name', ''); }}
-                  variant="secondary"
-                  size="md"
-                >
-                  + Nou
-                </Button>
-              </div>
-            ) : (
-              <div className="flex gap-1.5">
-                <Input
-                  type="text"
-                  placeholder="Membru nou"
-                  value={form.name}
-                  onChange={(e) => set('name', e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={() => { setNewName(false); set('name', names[0] || ''); }}
-                  variant="ghost"
-                  size="md"
-                >
-                  ✕
-                </Button>
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="label block mb-1.5">
-              Data <span className="normal-case font-normal text-[var(--color-fg-faint)]">(retroactiv OK)</span>
-            </label>
-            <Input
-              type="date"
-              value={form.date}
-              onChange={(e) => set('date', e.target.value)}
-              max={new Date().toISOString().slice(0, 10)}
-              className="w-full num"
-            />
-          </div>
-          <div>
-            <label className="label block mb-1.5">Gen</label>
-            <div className="flex gap-1.5" role="radiogroup" aria-label="Gen">
-              {(['M', 'F'] as Gender[]).map((g) => (
-                <button
-                  key={g}
-                  role="radio"
-                  aria-checked={form.gender === g}
-                  onClick={() => set('gender', g)}
-                  className={`flex-1 py-2 rounded-lg text-base font-bold transition-all ${
-                    form.gender === g
-                      ? g === 'M'
-                        ? 'bg-[var(--color-accent-soft)] text-white'
-                        : 'bg-[var(--color-bad)] text-white'
-                      : 'bg-[var(--color-card)] border border-[var(--color-border)] text-[var(--color-fg-muted)]'
-                  }`}
-                >
-                  {g === 'M' ? '♂' : '♀'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+      <Card className="p-0 overflow-hidden fade-in-up delay-1">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-border)]">
+                <th className="w-6" />
+                <Th className="text-left min-w-[120px] sticky left-0 bg-[var(--color-card)]">Nume</Th>
+                <Th className="min-w-[120px]">Data</Th>
+                <Th className="min-w-[54px]">Gen</Th>
+                {COLS.map((c) => <Th key={c.key} className="min-w-[64px]">{c.label}</Th>)}
+                <th className="w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={COLS.length + 5} className="text-center py-10 text-[var(--color-fg-muted)] text-xs">
+                    Niciun rând. Apasă <span className="font-semibold">Rând nou</span> ca să adaugi.
+                  </td>
+                </tr>
+              )}
+              {rows.map((r) => {
+                const dirty = rowDirty(r);
+                return (
+                  <tr
+                    key={r.id}
+                    className="border-b border-[var(--color-border)]/60 hover:bg-[var(--color-card-hover)]/40 transition-colors"
+                  >
+                    <td className="text-center align-middle">
+                      {dirty && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" title="nesalvat" />}
+                    </td>
 
-        {/* Body composition — same for everyone */}
-        <div>
-          <div className="flex items-baseline justify-between mb-2">
-            <div className="label">Body composition · pentru toți</div>
-            <div className="text-[10px] num text-[var(--color-fg-faint)]">câmpurile goale se ignoră</div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {BODY_FIELDS.map((f) => (
-              <FieldInput
-                key={f.key}
-                label={f.label}
-                unit={f.unit}
-                step={f.step}
-                value={form[f.key] || ''}
-                onChange={(v) => set(f.key, v)}
-              />
-            ))}
-          </div>
-        </div>
+                    {/* Key columns: editable for new rows, locked for existing */}
+                    <td className="px-2 py-1 sticky left-0 bg-[var(--color-card)]">
+                      {r.isNew ? (
+                        <input
+                          type="text"
+                          value={r.name}
+                          placeholder="Nume"
+                          onChange={(e) => setField(r.id, 'name', e.target.value)}
+                          className="w-full bg-transparent outline-none font-semibold text-[var(--color-fg)] placeholder:text-[var(--color-fg-faint)]"
+                        />
+                      ) : (
+                        <span className="font-semibold text-[var(--color-fg)] whitespace-nowrap">{r.name}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1">
+                      {r.isNew ? (
+                        <input
+                          type="date"
+                          value={r.date}
+                          max={todayISO()}
+                          onChange={(e) => setField(r.id, 'date', e.target.value)}
+                          className="w-full bg-transparent outline-none num text-[var(--color-fg)]"
+                        />
+                      ) : (
+                        <span className="num text-[var(--color-fg-muted)] whitespace-nowrap">{r.date}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 text-center">
+                      {r.isNew ? (
+                        <select
+                          value={r.gender}
+                          onChange={(e) => setField(r.id, 'gender', e.target.value as Gender)}
+                          className="bg-transparent outline-none num text-[var(--color-fg)]"
+                        >
+                          <option value="M">♂</option>
+                          <option value="F">♀</option>
+                        </select>
+                      ) : (
+                        <span className="num text-[var(--color-fg-muted)]">{r.gender === 'F' ? '♀' : '♂'}</span>
+                      )}
+                    </td>
 
-        {/* Measurements — gender-dynamic */}
-        <div>
-          <div className="flex items-baseline justify-between mb-2">
-            <div className="label">
-              Măsurători (cm) · {gender === 'F' ? 'feminin' : 'masculin'}
-            </div>
-            <div className="text-[10px] num text-[var(--color-fg-faint)]">
-              {gender === 'F' ? 'biceps · piept · talie · fesieri' : 'biceps · piept · spate · fesieri'}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {measurementFields.map((f) => (
-              <FieldInput
-                key={f.key}
-                label={f.label}
-                unit={f.unit}
-                step="0.5"
-                value={form[f.key] || ''}
-                onChange={(v) => set(f.key, v)}
-              />
-            ))}
-          </div>
-        </div>
+                    {COLS.map((c) => {
+                      const changed = !r.isNew && (r.vals[c.key] ?? '') !== (r.orig[c.key] ?? '');
+                      return (
+                        <td key={c.key} className="px-1 py-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step={c.step}
+                            placeholder="—"
+                            value={r.vals[c.key] ?? ''}
+                            onChange={(e) => setVal(r.id, c.key, e.target.value)}
+                            className={`w-14 text-center bg-transparent outline-none num text-[var(--color-fg)] placeholder:text-[var(--color-fg-faint)] rounded px-1 py-0.5 focus:bg-[var(--color-bg)] focus:ring-1 focus:ring-[var(--color-accent)] ${changed ? 'text-[var(--color-accent)] font-semibold' : ''}`}
+                          />
+                        </td>
+                      );
+                    })}
 
-        <div className="flex items-center gap-2 pt-1">
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !form.name}
-            variant="primary"
-            size="lg"
-            className="flex-1"
-          >
-            {submitting ? 'Se salvează...' : '💾 Salvează măsurătoarea'}
-          </Button>
-          <Button
-            onClick={() => setForm((f) => ({ name: f.name, date: f.date, gender: f.gender }))}
-            variant="ghost"
-            size="md"
-            title="Curăță valorile măsurate"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </Button>
+                    <td className="px-1 text-center">
+                      {r.isNew && (
+                        <button
+                          onClick={() => removeNewRow(r.id)}
+                          className="text-[var(--color-fg-faint)] hover:text-[var(--color-bad)] transition-colors"
+                          title="Șterge rândul nou"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Card>
+
+      <p className="text-[10px] text-[var(--color-fg-faint)] px-1">
+        Celulele goale se ignoră la salvare. Rândurile existente se actualizează după Nume + Dată (upsert),
+        direct în baza de date Postgres. <span className="num">Import Sheets</span> aduce o dată datele vechi din Google Sheets.
+      </p>
     </div>
   );
 }
 
-function FieldInput({
-  label, unit, step, value, onChange,
-}: {
-  label: string;
-  unit: string;
-  step: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function Th({ children, className = '' }: { children?: React.ReactNode; className?: string }) {
   return (
-    <div className="rounded-xl px-2.5 py-2 border border-[var(--color-border)] bg-[var(--color-card)] focus-within:border-[var(--color-accent)] transition-colors">
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--color-fg-muted)]">{label}</span>
-        <span className="text-[9px] num text-[var(--color-fg-faint)]">{unit}</span>
-      </div>
-      <input
-        type="number"
-        inputMode="decimal"
-        step={step}
-        placeholder="—"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent outline-none num font-bold text-lg text-[var(--color-fg)] placeholder:text-[var(--color-fg-faint)] placeholder:font-normal"
-      />
-    </div>
+    <th className={`label px-2 py-2 text-[9px] font-bold text-[var(--color-fg-muted)] ${className}`}>
+      {children}
+    </th>
   );
 }

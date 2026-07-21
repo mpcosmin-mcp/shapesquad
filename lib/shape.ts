@@ -32,9 +32,6 @@ export const ADMIN_NAMES = ['Petrica', 'Cosmin'];
 export const isAdminName = (name: string | null | undefined): boolean =>
   !!name && ADMIN_NAMES.includes(name);
 
-// ── API ────────────────────────────────────────────────
-export const API = 'https://script.google.com/macros/s/AKfycbxqEkxY93XwuKtu1daSqSj_4EsILuaLGVJzoLpPEaBIKcqsLIcgSoCzk5_VeTsDNOAg/exec';
-
 /**
  * Fetch all measurement data via our own /api/data server route.
  * The route does server-side fetch of Apps Script (no JSONP/CORS issues,
@@ -74,12 +71,34 @@ export function isDemoData(entries: Entry[]): boolean {
   return names.has('Adina') && names.has('Cosmin');
 }
 
-export async function submitEntry(entry: Record<string, any>): Promise<boolean> {
+/**
+ * Verify the log password server-side (never compared in the browser).
+ * Returns true only on a 200 from /api/log/verify.
+ */
+export async function verifyLogPassword(password: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/log/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+/**
+ * Write one measurement row. The password is re-verified server-side in
+ * /api/submit and stripped before the payload reaches Sheets.
+ */
+export async function submitEntry(
+  entry: Record<string, any>,
+  password: string,
+): Promise<boolean> {
   try {
     const res = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
+      body: JSON.stringify({ ...entry, password }),
     });
     return res.ok;
   } catch { return false; }
