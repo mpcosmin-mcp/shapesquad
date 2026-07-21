@@ -182,6 +182,8 @@ export default function ClasamentPage() {
             : `Nu sunt destule date pentru ${def.label} încă.`}
         </Card>
       )}
+      {/* Both gender boards side by side on desktop — halves the scroll */}
+      <div className={`grid gap-4 items-start ${boards.length > 1 ? 'lg:grid-cols-2' : ''}`}>
       {boards.map(({ g, rows }) => {
         const gm = GENDER_META[g];
         const champ = rows[0];
@@ -226,6 +228,7 @@ export default function ClasamentPage() {
           </section>
         );
       })}
+      </div>
 
       {/* History peek — same modal as the Squad rail */}
       {peekPerson && (
