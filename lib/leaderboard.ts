@@ -26,11 +26,37 @@ import { type Person, type MetricKey, type MetricDef, METRICS, f } from './shape
 export const BOARD_METRICS: MetricDef[] = METRICS.filter((m) => m.key !== 'kg');
 
 /**
- * name → height in cm (must match the DB `Nume` exactly).
- * Filling this in unlocks the BMI board — until then raw weight stays out of
- * the competition entirely. Ex: { 'Petrica': 183, 'Cosmin': 178 }
+ * name → height in cm. Matching is by first name, case- and diacritics-
+ * insensitive (see heightFor), so 'Petrica' matches "Petrică Popescu" too.
+ * Having entries here unlocks the BMI board.
  */
-export const HEIGHTS_CM: Record<string, number> = {};
+export const HEIGHTS_CM: Record<string, number> = {
+  Petrica: 184,
+  Varamea: 164,
+  Cristi: 186,
+  Carlso: 186,
+  Carlos: 186, // same person — cover both spellings
+  Lavinia: 165,
+  Cata: 178,
+  Clara: 165,
+  Stefi: 150,
+  Bogdan: 170,
+  Gabriel: 172,
+  Adina: 168,
+};
+
+const normName = (s: string): string =>
+  s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Height for a person: exact key match, else first-name match (loose). */
+export function heightFor(name: string): number | null {
+  if (HEIGHTS_CM[name] != null) return HEIGHTS_CM[name];
+  const first = normName(name.split(/\s+/)[0] ?? '');
+  for (const [k, v] of Object.entries(HEIGHTS_CM)) {
+    if (normName(k) === first) return v;
+  }
+  return null;
+}
 
 export const heightsConfigured = (): boolean => Object.keys(HEIGHTS_CM).length > 0;
 
@@ -103,7 +129,7 @@ export function rankByProgress(people: Person[], key: MetricKey): ProgressRow[] 
 /* ─── BMI board (replaces raw kg once heights are known) ── */
 
 function bmiPoints(p: Person): { first: number; latest: number } | null {
-  const h = HEIGHTS_CM[p.name];
+  const h = heightFor(p.name);
   if (!h) return null;
   const s = seriesFor(p, 'kg');
   if (!s.length) return null;
