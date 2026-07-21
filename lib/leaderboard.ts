@@ -32,6 +32,7 @@ export const BOARD_METRICS: MetricDef[] = METRICS.filter((m) => m.key !== 'kg');
  */
 export const HEIGHTS_CM: Record<string, number> = {
   Petrica: 184,
+  Cosmin: 184, // same person as Petrica — two names in the app
   Varamea: 164,
   Cristi: 186,
   Carlso: 186,
