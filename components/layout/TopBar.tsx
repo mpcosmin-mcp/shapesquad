@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { LogOut, PlusCircle } from 'lucide-react';
+import { LogOut, PlusCircle, Trophy } from 'lucide-react';
 import { AriaLogo } from '@/components/ui/AriaLogo';
 import { PERSON_COLORS } from '@/lib/shape';
 import { useLoggedInUser } from '@/lib/useLoggedInUser';
@@ -38,6 +38,15 @@ export function TopBar() {
           </span>
         </Link>
         <div className="flex items-center gap-1">
+          <Link
+            href="/clasament"
+            title="Clasament & feed"
+            aria-label="Clasament"
+            className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full border border-[#ffd700]/40 bg-[#ffd700]/10 text-[#ffd700] hover:bg-[#ffd700]/20 transition-colors mr-0.5"
+          >
+            <Trophy size={14} />
+            <span className="text-[11px] font-bold hidden sm:inline">Top</span>
+          </Link>
           <Link
             href="/activitati"
             title="Activități Aria"
